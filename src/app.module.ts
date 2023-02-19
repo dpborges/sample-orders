@@ -6,6 +6,9 @@ import { NatsJetStreamTransport } from '@nestjs-plugins/nestjs-nats-jetstream-tr
 import { NatsJetStreamClient } from '@nestjs-plugins/nestjs-nats-jetstream-transport';
 import { CustomNatsClient } from './custom.nats.client.service';
 import { contactRepositories } from './contact/repos/contact.repositories';
+// import { DomainMgtService } from './domain-mgt/domain-mgt.service';
+import { ContactAggregateService } from './contact/contact.aggregate.service';
+// import { AggregateService } from './domain-mgt/aggregrate/aggregate.service';
 
 // I assume this is used in the gateway, as it is functioning as the client
 
@@ -24,7 +27,8 @@ import { contactRepositories } from './contact/repos/contact.repositories';
       ...contactRepositories,
       AppService,
       NatsJetStreamClient, 
-      CustomNatsClient
+      CustomNatsClient,
+      ContactAggregateService
   ],
 })
 export class AppModule {}

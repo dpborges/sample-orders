@@ -15,16 +15,65 @@ import { OrderCreatedEvent, OrderUpdatedEvent, OrderDeletedEvent } from './event
 import { Patterns } from './commands/orders/patterns';
 import { ExceptionFilter } from './common/filters';
 import { Contact } from './contact/entities/contact.entity';
+import { CreateContactDto } from './dtos/create.contact.dto';
+// import { DomainMgtService } from './domain-mgt/domain-mgt.service';
+import { ContactAggregateService } from './contact/contact.aggregate.service';
+
+const createContactDto = {
+  accountId: 1001,
+  firstName: 'Dan',
+  lastName: 'Borges',
+  webSiteUrl: 'www.pitchinclub.com',
+  mobilePhone: '9175554343',
+  type: 'application',
+  name: 'pic'
+}
+
 
 @UseFilters(new ExceptionFilter())
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
+  constructor(
+    private readonly appService: AppService,
+    private readonly contactAggregateService: ContactAggregateService
+    ) {}
 
   /* Rest End Point */
   @Get()
   home(): string {
     return 'Welcome to webshop';
+  }
+
+  @Get('/getinfo')
+  getInfo(): string {
+    return this.contactAggregateService.getInfo(createContactDto)
+  }
+
+  @Get('/createaggregate')
+  async createAggregate() {  
+    console.log(">> Inside Create contact in controller")
+    const createContactDto = {
+      accountId: 1001,
+      firstName: 'Dan',
+      lastName: 'Borges',
+      webSiteUrl: 'www.pitchinclub.com',
+      mobilePhone: '9175554343'
+    }
+    return this.contactAggregateService.create(createContactDto)
+  }
+
+  // @Get('/version')
+  // async getAggregateVersion() {  
+  //   console.log(">> Inside Create contact in controller")
+  //   // return this.domainMgtService.test()
+  //   return this.contactAggregateService.getVersion()
+  // }
+
+  @Get('/test')
+  async callTest() {  
+    console.log(">> Inside Create contact in controller")
+    // return this.domainMgtService.test()
+    return this.contactAggregateService.test()
   }
 
   @Get('/createcontact')

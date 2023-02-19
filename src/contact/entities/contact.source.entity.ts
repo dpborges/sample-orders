@@ -13,7 +13,7 @@ export class ContactSource {
   @PrimaryGeneratedColumn()
   id: number;
   
-  @PrimaryColumn()
+  // @PrimaryColumn()
   accountId: string;
 
   @Column()  

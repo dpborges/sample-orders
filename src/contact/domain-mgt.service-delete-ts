@@ -1,0 +1,23 @@
+import { Injectable } from '@nestjs/common';
+import { AggregrateService } from './aggregrate/aggregrate.service';
+
+@Injectable()
+export class DomainMgtService {
+  
+  constructor(
+    private aggregateService: AggregrateService
+    // private client: NatsJetStreamClient,
+    // @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
+  ) {}
+  
+  createAggregate(payload: string): any {
+    return this.aggregateService.create(payload);
+  }
+
+  getAggregateVersion(): number {
+    return this.aggregateService.getVersion();
+  }
+
+
+
+}

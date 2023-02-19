@@ -6,10 +6,12 @@ import {
 
 /**
  * To run change file suffix from -ts to .ts and issue one of the commands below
- *   Command for Dev : npm run typeorm  migration:run
- *   Command for Test: npm run typeorm:test migration:run
+ *   Command for Dev : npm run typeorm  migration:run -- -d ./src/datasource.ts
+ *   Command for Test: npm run typeorm:test migration:run -- -d ./src/datasource.ts
  * Change suffix back to -ts
- */
+ * To create migration 
+ *  npm run typeorm migration:create migrations/<entityName or anyName>
+ **/
 
 const TABLE_NAME  = "contact";
 const TABLE_OWNER = "postgres";

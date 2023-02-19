@@ -9,12 +9,14 @@ import { Subjects } from './events/orders/subjects';
 import { RpcException } from '@nestjs/microservices';
 import { RepoToken } from './contact/repos/repo.token.enum';
 import { Contact } from './contact/entities/contact.entity';
+// import { DomainMgtService } from './domain-mgt/domain-mgt.service';
 
 @Injectable()
 export class AppService {
   constructor(
     // private client: NatsJetStreamClient,
     private customNatsClient: CustomNatsClient,
+    // private domainMgtService: DomainMgtService,
     @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
   ) {}
 

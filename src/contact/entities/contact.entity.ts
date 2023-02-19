@@ -21,11 +21,11 @@ export class Contact {
   @VersionColumn()
   version: number
 
-  @Index({name: 'idx_email'})
+  @Index()
   @Column()
   email: string;
    
-  @Index({name: 'idx_account_id'})
+  @Index()
   @Column()
   accountId: number;
 
