@@ -7,7 +7,9 @@ import { NatsJetStreamClient } from '@nestjs-plugins/nestjs-nats-jetstream-trans
 import { CustomNatsClient } from './custom.nats.client.service';
 import { contactRepositories } from './contact/repos/contact.repositories';
 // import { DomainMgtService } from './domain-mgt/domain-mgt.service';
-import { ContactAggregateService } from './contact/contact.aggregate.service';
+import { ContactService } from './contact/contact.service';
+import { ContactAggregate } from './contact/aggregate-types/contact.aggregate';
+import { ContactSaveService } from './contact/contact.save.service';
 // import { AggregateService } from './domain-mgt/aggregrate/aggregate.service';
 
 // I assume this is used in the gateway, as it is functioning as the client
@@ -28,7 +30,9 @@ import { ContactAggregateService } from './contact/contact.aggregate.service';
       AppService,
       NatsJetStreamClient, 
       CustomNatsClient,
-      ContactAggregateService
+      ContactAggregate,
+      ContactService,
+      ContactSaveService
   ],
 })
 export class AppModule {}

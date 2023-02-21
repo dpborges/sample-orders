@@ -41,9 +41,6 @@ export class Contact {
   @Column()
   mobilePhone: string;
 
-  @Column()
-  contactSourceId: number;
-
   @CreateDateColumn()
   createDate: Date;
 

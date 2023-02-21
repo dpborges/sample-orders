@@ -35,10 +35,8 @@ export class Contact1676403976245 implements MigrationInterface {
         last_name     character varying,
         website_url   character varying,
         mobile_phone  character varying,
-        contact_source_id  integer  NOT NULL,
         create_date timestamp with time zone NOT NULL DEFAULT now(),
-        update_date timestamp with time zone NOT NULL DEFAULT now(),
-        CONSTRAINT fk_contact_source_id FOREIGN KEY (contact_source_id) REFERENCES contact_source (id)
+        update_date timestamp with time zone NOT NULL DEFAULT now()
       )
       TABLESPACE pg_default;
       ALTER TABLE ${TABLE_NAME} OWNER to ${TABLE_OWNER};

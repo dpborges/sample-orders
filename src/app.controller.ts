@@ -15,18 +15,19 @@ import { OrderCreatedEvent, OrderUpdatedEvent, OrderDeletedEvent } from './event
 import { Patterns } from './commands/orders/patterns';
 import { ExceptionFilter } from './common/filters';
 import { Contact } from './contact/entities/contact.entity';
-import { CreateContactDto } from './dtos/create.contact.dto';
+import { CreateContactDto } from './contact/dtos/create.contact.dto';
 // import { DomainMgtService } from './domain-mgt/domain-mgt.service';
-import { ContactAggregateService } from './contact/contact.aggregate.service';
+import { ContactService } from './contact/contact.service';
 
 const createContactDto = {
-  accountId: 1001,
-  firstName: 'Dan',
-  lastName: 'Borges',
-  webSiteUrl: 'www.pitchinclub.com',
+  accountId: 1004,
+  email: 'jayb@gmail.com',
+  firstName: 'Jayden',
+  lastName: 'Borgest',
+  webSiteUrl: 'www.nikestuff.com',
   mobilePhone: '9175554343',
-  type: 'application',
-  name: 'pic'
+  sourceType: 'application',
+  sourceName: 'pivitee'
 }
 
 
@@ -35,7 +36,7 @@ const createContactDto = {
 export class AppController {
   constructor(
     private readonly appService: AppService,
-    private readonly contactAggregateService: ContactAggregateService
+    private readonly contactService: ContactService
     ) {}
 
   /* Rest End Point */
@@ -44,23 +45,26 @@ export class AppController {
     return 'Welcome to webshop';
   }
 
-  @Get('/getinfo')
-  getInfo(): string {
-    return this.contactAggregateService.getInfo(createContactDto)
+
+  @Get('/createcontact')
+  async createContact() {  
+    console.log(">> Inside Create contact in controller")
+    const contact  =  this.contactService.create(createContactDto)
+    return contact;
   }
 
-  @Get('/createaggregate')
-  async createAggregate() {  
-    console.log(">> Inside Create contact in controller")
-    const createContactDto = {
-      accountId: 1001,
-      firstName: 'Dan',
-      lastName: 'Borges',
-      webSiteUrl: 'www.pitchinclub.com',
-      mobilePhone: '9175554343'
-    }
-    return this.contactAggregateService.create(createContactDto)
-  }
+  // @Get('/createaggregate')
+  // async createAggregate() {  
+  //   console.log(">> Inside Create contact in controller")
+  //   const createContactDto = {
+  //     accountId: 1001,
+  //     firstName: 'Dan',
+  //     lastName: 'Borges',
+  //     webSiteUrl: 'www.pitchinclub.com',
+  //     mobilePhone: '9175554343'
+  //   }
+  //   return this.contactService.create(createContactDto)
+  // }
 
   // @Get('/version')
   // async getAggregateVersion() {  
@@ -69,20 +73,14 @@ export class AppController {
   //   return this.contactAggregateService.getVersion()
   // }
 
-  @Get('/test')
-  async callTest() {  
-    console.log(">> Inside Create contact in controller")
-    // return this.domainMgtService.test()
-    return this.contactAggregateService.test()
-  }
+  // @Get('/test')
+  // async callTest() {  
+  //   console.log(">> Inside Create contact in controller")
+  //   // return this.domainMgtService.test()
+  //   return this.contact.test()
+  // }
 
-  @Get('/createcontact')
-  async createContact() {  
-    console.log(">> Inside Create contact in controller")
-    const contact: Contact = await this.appService.createContact()
-    console.log("    returned contact from createContact ", contact);
-    return contact;
-  }
+ 
 
   // Response Side of Request Response Service - 
   // Hosted on Microservice instance -  Listens for 'sum' command

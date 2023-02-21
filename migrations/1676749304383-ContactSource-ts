@@ -23,9 +23,11 @@ export class ContactSource1676749304383 implements MigrationInterface  {
       (
         id           SERIAL PRIMARY KEY,
         account_id   integer   NOT NULL,
+        contact_id   integer,
         type         character varying  NOT NULL,
         name         character varying  NOT NULL,
-        create_date timestamp with time zone NOT NULL DEFAULT now()
+        create_date timestamp with time zone NOT NULL DEFAULT now(),
+        CONSTRAINT fk_contact_id FOREIGN KEY (contact_id) REFERENCES contact (id)
       )
       TABLESPACE pg_default;
       ALTER TABLE ${TABLE_NAME} OWNER to ${TABLE_OWNER};

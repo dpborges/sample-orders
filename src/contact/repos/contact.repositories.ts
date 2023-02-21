@@ -1,3 +1,4 @@
+import { ContactSource } from './../entities/contact.source.entity';
 import { DataSource } from 'typeorm';
 import { Contact } from '../entities/contact.entity';
 // import { ContactSource } from '../entities/contact.source.entity';
@@ -7,6 +8,11 @@ export const contactRepositories = [
   {
     provide: RepoToken.CONTACT_REPOSITORY,
     useFactory: (dataSource: DataSource) => dataSource.getRepository(Contact),
+    inject: ['DATA_SOURCE'],
+  },
+  {
+    provide: RepoToken.CONTACT_SOURCE_REPOSITORY,
+    useFactory: (dataSource: DataSource) => dataSource.getRepository(ContactSource),
     inject: ['DATA_SOURCE'],
   }
   // {
