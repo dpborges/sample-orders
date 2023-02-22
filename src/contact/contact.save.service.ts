@@ -8,6 +8,7 @@ import { ContactSource } from './entities/contact.source.entity';
 import { ContactAcctRel } from './entities/contact.acct.rel.entity';
 import { RepoToken } from './repos/repo.token.enum';
 import { ContactAggregateEntities } from './aggregate-types/contact.aggregate.type';
+import { TransactionStatus } from './aggregate-types/transaction-status.type';
 
 @Injectable()
 export class ContactSaveService {
@@ -18,7 +19,7 @@ export class ContactSaveService {
     @Inject(RepoToken.CONTACT_SOURCE_REPOSITORY) private contactSourceRepository: Repository<ContactSource>
   ) {}
   
-  async save(contactAggregateEntities: ContactAggregateEntities) {
+  async save(contactAggregateEntities: ContactAggregateEntities): Promise<TransactionStatus> {
     /* establish connection  */
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -27,7 +28,13 @@ export class ContactSaveService {
     let { contact, contactSource, contactAcctRel } = contactAggregateEntities;
 
     /* initialize transaction status */
-    let transactionStatus = { successful: true, errorMessage: ''}
+    let transactionStatus: TransactionStatus = { successful: true, errorMessage: ''};
+
+    /* if all aggregate entities are null, it means the aggregate.create service 
+       found entity exists and is signaling to bypass transaction logic. */
+    if (this.allAggregateEntitiesNull(contactAggregateEntities)) {
+      return transactionStatus;
+    }
 
     /* start transaction */
     await queryRunner.startTransaction();
@@ -47,7 +54,7 @@ export class ContactSaveService {
       if (!contactAcctRel) {
         console.log("NO CONTACT ACCT RELATION")
       } 
-      await queryRunner.commitTransaction()
+      await queryRunner.commitTransaction();
     } catch (err) {
       // rollback changes and set success flag to false
       await queryRunner.rollbackTransaction();
@@ -58,15 +65,24 @@ export class ContactSaveService {
       await queryRunner.release();
     }
 
-    /* save contact  */
-    // const savedContact: Contact = await this.contactRepository.save(contactAggregateEntities.contact)
-
-    /* assign contact id to contactSource */
-    // contactAggregateEntities.contactSource.contactId = savedContact.id;
-    /* save contactSource */
-    // const savedContactSource: ContactSource = await this.contactSourceRepository.save(contactAggregateEntities.contactSource)
-    return contactAggregateEntities;
+    return transactionStatus;
   };
   
+
+  // **************************************************************
+  // Helpers
+  // **************************************************************
+  allAggregateEntitiesNull(contactAggregateEntities) {
+    /* define predicate function */
+    const isNull = value => value === null;
+
+    /* transfer entity values into array */
+    let entityArrayValues = [];
+    Object.keys(contactAggregateEntities).forEach((key:string) => entityArrayValues.push(contactAggregateEntities[key]) );
+
+    /* return if all values are null or not */
+    return entityArrayValues.every(isNull)
+  }
   
+
 }

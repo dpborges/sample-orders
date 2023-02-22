@@ -53,6 +53,28 @@ export class AppController {
     return contact;
   }
 
+
+  @Get('/sandboxresults')
+  async sandbox() {  
+    const isNull = value => value === null;
+
+    let sampleAggregate = { a: null, b: null };
+
+    /* transfer entity values into array */
+    let entityArrayValues = [];
+    Object.keys(sampleAggregate).forEach((key:string) => entityArrayValues.push(sampleAggregate[key]) );
+
+
+    console.log(">> Below are entity values ")
+    console.log(entityArrayValues);
+
+    /* check if all values are null */
+    let result = entityArrayValues.every(isNull)
+    console.log(">> All aggregates null ", result)
+    return 'completed displaying results';
+  }
+
+
   // @Get('/createaggregate')
   // async createAggregate() {  
   //   console.log(">> Inside Create contact in controller")
@@ -93,7 +115,7 @@ export class AppController {
 
   //Listens for command Pattern
   @ExecuteCommand({ cmd: Patterns.CreateOrder })
-  async createOrderCommand(
+  async createOrderCommandHandler(
     @Payload() data: CreateOrderEvent,
     @Ctx() context: NatsJetStreamContext
   ): Promise<any> {
