@@ -35,14 +35,14 @@ export class AppService {
     /* Upon successful order created, publish OrderCreatedEvent */
 
     /* emit orderCreatedEvent */ 
-    console.log(`MS - Saved new order to database`);
+    console.log(`MS - Saved new order to database with outbox entry/published=false`);
     // throw new RpcException('Unexected exception on Create Order Service')
     console.log("MS - Emit Created Order Event ")
     let publishResult = await this.customNatsClient.publishEvent(Subjects.OrderCreated, orderCreatedEvent);
-    console.log(`MS - Response from publishing orderCreatedEvent: ${publishResult}`);
+    console.log(`MS - Acknowledgement from publishing orderCreatedEvent: ${publishResult}`);
 
     /* If event was succesfully published, update outbox to published = true */ 
-    console.log("MS - Update Outbox with successful ")
+    console.log("MS - If received acknowledgement, Update Outbox with published=true ")
 
 
     // this.client
