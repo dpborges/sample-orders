@@ -18,17 +18,8 @@ import { Contact } from './contact/entities/contact.entity';
 import { CreateContactDto } from './contact/dtos/create.contact.dto';
 // import { DomainMgtService } from './domain-mgt/domain-mgt.service';
 import { ContactService } from './contact/contact.service';
-
-const createContactDto = {
-  accountId: 1004,
-  email: 'jayb@gmail.com',
-  firstName: 'Jayden',
-  lastName: 'Borgest',
-  webSiteUrl: 'www.nikestuff.com',
-  mobilePhone: '9175554343',
-  sourceType: 'application',
-  sourceName: 'pivitee'
-}
+import { ContactCommand } from './commands/contacts/contact-commands';
+import { CreateContactEvent } from './events/contacts/create-contact-event';
 
 
 @UseFilters(new ExceptionFilter())
@@ -45,13 +36,35 @@ export class AppController {
     return 'Welcome to webshop';
   }
 
+  //************************************************************** */
+  // Contact command handlers and event listeners
+  //************************************************************** */
+  // Command Handlers
+  @ExecuteCommand(ContactCommand.createContact)
+  async createContactCommandHandler(
+    @Payload() data: CreateContactEvent,
+    @Ctx() context: NatsJetStreamContext
+  ): Promise<any> {
+    const subject = context.message.subject;
+    console.log(`MS - Received command ${ContactCommand.createContact} on Orders Microservice`);
+    console.log('MS - ....with payload', data);
+    const cmdResult: any  =  this.contactService.create(data)
 
-  @Get('/createcontact')
-  async createContact() {  
-    console.log(">> Inside Create contact in controller")
-    const contact  =  this.contactService.create(createContactDto)
-    return contact;
+    // Here you create Order and insert CreatedOrderEvent to the event database
+    // as a single transaction. The publish flag will be false false
+
+    // here you return the CreatedOrderEvent.
+    return cmdResult;
   }
+
+  //Event Listeners
+
+  // @Get('/createcontact')
+  // async createContact() {  
+  //   console.log(">> Inside Create contact in controller")
+  //   const contact  =  this.contactService.create(createContactDto)
+  //   return contact;
+  // }
 
 
   @Get('/sandboxresults')
@@ -113,6 +126,9 @@ export class AppController {
   //   return (data || []).reduce((a, b) => a + b);
   // }
 
+  //************************************************************** */
+  // Order command handlers and event listeners
+  //************************************************************** */
   //Listens for command Pattern
   @ExecuteCommand({ cmd: Patterns.CreateOrder })
   async createOrderCommandHandler(
@@ -182,4 +198,8 @@ export class AppController {
   //   context.message.ack();
   //   console.log('received: ' + context.message.subject, data);
   // }
+
+
+
+
 }

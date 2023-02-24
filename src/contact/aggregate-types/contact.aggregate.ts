@@ -1,3 +1,4 @@
+import { contactRepositories } from './../repos/contact.repositories';
 import { ContactAcctRel } from './../entities/contact.acct.rel.entity';
 import { ContactSource } from './../entities/contact.source.entity';
 import { ContactSaveService } from './../contact.save.service';
@@ -10,7 +11,10 @@ import { RepoToken } from '../repos/repo.token.enum';
 import { ContactAggregateEntities } from './contact.aggregate.type';
 import { BusinessRule } from './business-rule.enum';
 import { TransactionStatus } from './transaction-status.type'
+import { CreateContactEvent } from 'src/events/contacts/create-contact-event';
 
+// class used to construct aggregate object with related entities from event payload/
+// This class also has creational business rules and/or save business rules
 @Injectable()
 export class ContactAggregate extends AggregateRoot {
 
@@ -25,27 +29,24 @@ export class ContactAggregate extends AggregateRoot {
      contactSource: null,
      contactAcctRel: null
   }
-  // contact: Contact;
-  // contactSource: ContactSource;
-  // contactAcctRel: ContactAcctRel;
-
-  /* Constructs aggregate from the create Dto.  */
-  async create(createContactDto: CreateContactDto): Promise<ContactAggregateEntities> {
+ 
+  /* Constructs aggregate from parts of the event payload.  */
+  async create(createContactEvent: CreateContactEvent): Promise<ContactAggregateEntities> {
     /* destructure Dto to extract aggregate entities */
-    const { email, accountId, firstName, lastName, webSiteUrl, mobilePhone } = createContactDto;
-    const { sourceType: type, sourceName: name } = createContactDto;
+    const { email, accountId, firstName, lastName, webSiteUrl, mobilePhone } = createContactEvent;
+    const { sourceType: type, sourceName: name } = createContactEvent;
     
     /* if contact exists, return aggregate with null entities. This will result in bypassing
       save operation effectively implementing an idempotent behavior  */
-    const contactExists: boolean = await this.runAsyncBusinessRule(BusinessRule.createContactNotExistCheck);
-    if (contactExists) {
-      return this.aggregate;
-    }
+    // const contactExists: boolean = await this.runAsyncBusinessRule(BusinessRule.createContactNotExistCheck, ruleInputs);
+    // if (contactExists) {
+    //   return this.aggregate;
+    // }
 
-    /* create contact instance */
-    this.aggregate.contact = this.contactRepository.create(createContactDto);
+    /* create contact instance and set the aggregate property */
+    this.aggregate.contact = this.contactRepository.create(createContactEvent);
     
-    /* create contact source */
+    /* create contact source and set the aggregate property */
     this.aggregate.contactSource = this.contactSourceRepository.create({type, name});
     
     /* assign default version to new contact aggregate */
@@ -61,15 +62,23 @@ export class ContactAggregate extends AggregateRoot {
   applyChanges() {};
 
   async save(contactAggregateEntities: ContactAggregateEntities): Promise<TransactionStatus> {
+    console.log(">>>> Inside contactAggregate.save()")
+    /* implements idempotent behavior */
+    const { contact } = contactAggregateEntities;
+    const ruleInputs = { accountId: contact.accountId, email: contact.email };
+    const contactExist: boolean = await this.runAsyncBusinessRule(BusinessRule.contactExistCheck, ruleInputs);
+    console.log(`    contactExist value: ${contactExist}`)
+    // if (contactExists) {
+    //   return this.aggregate;
+    // }
     return await this.contactSaveService.save(contactAggregateEntities) 
   }
  
- async runAsyncBusinessRule(businessRule) {
-    let ruleResult: any;
+ async runAsyncBusinessRule(businessRule, ruleInputs) {
+    let ruleResult: any = true;
     switch(businessRule) {
-      case BusinessRule.createContactNotExistCheck:
-        ruleResult = true;
-        await Promise.resolve(ruleResult)
+      case BusinessRule.contactExistCheck:
+        ruleResult = await this.findContactByAcctandEmail(ruleInputs)
         break;
       case BusinessRule.updateContactXyzRule:
         /* bizlogic */
@@ -84,9 +93,18 @@ export class ContactAggregate extends AggregateRoot {
 
 
   //***************************************************************************** 
-  // Helper functions
+  // Helper functions and business rules
   //***************************************************************************** 
   
+  async findContactByAcctandEmail(ruleInputs) {
+    console.log(">>>> Inside findContactByAcctandEmail")
+    const { accountId, email } = ruleInputs;
+    const contact =  await this.contactRepository.findOne({
+      where: { accountId, email }
+    })
+    console.log(`     contact: ${contact}`)
+    return contact ? true : false
+  }
 
 
 }

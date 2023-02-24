@@ -3,7 +3,6 @@ import { NatsJetStreamClient } from '@nestjs-plugins/nestjs-nats-jetstream-trans
 import { PubAck } from 'nats';
 import { Observable } from 'rxjs';
 import { Subjects } from './events/orders/subjects';
-import { Patterns } from './commands/orders/patterns';
 
 @Injectable()
 export class CustomNatsClient {
@@ -13,10 +12,10 @@ export class CustomNatsClient {
   ) {}
 
   /* Sends a command (aka request) and subscribes to the reply. */
-  sendCommand<T>(command: Patterns, payload: T): Promise<any> {
+  sendCommand<T>(command: string, payload: T): Promise<any> {
     return new Promise((resolve, reject) => {
-      const cmdPattern = { cmd: command };
-      this.natsClient.send<T>(cmdPattern, payload)
+      // const cmdPattern = { cmd: command };
+      this.natsClient.send<T>(command, payload)
       .subscribe(
         (data) => { 
           resolve(data)
@@ -27,6 +26,7 @@ export class CustomNatsClient {
         (err) => {
           console.log(`ERROR FROM SEND COMMAND command:${command} payload:${payload}`);
           console.log(`ERROR ${err}`)
+          console.log("Possible reason is there is no listenter for command")
         }
       );
     })

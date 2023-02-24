@@ -10,6 +10,8 @@ import { RepoToken } from './repos/repo.token.enum';
 import { ContactAggregateEntities } from './aggregate-types/contact.aggregate.type';
 import { TransactionStatus } from './aggregate-types/transaction-status.type';
 
+
+// Clas is relagated to handling save transaction involving one or more aggregate entities
 @Injectable()
 export class ContactSaveService {
   
