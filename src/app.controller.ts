@@ -20,6 +20,9 @@ import { CreateContactDto } from './contact/dtos/create.contact.dto';
 import { ContactService } from './contact/contact.service';
 import { ContactCommand } from './commands/contacts/contact-commands';
 import { CreateContactEvent } from './events/contacts/create-contact-event';
+import { ContactQueries } from './commands/contacts/contact-queries';
+import { QueryContactByIdEvent } from './events/contacts/query-contact-by-id';
+
 
 
 @UseFilters(new ExceptionFilter())
@@ -40,6 +43,29 @@ export class AppController {
   // Contact command handlers and event listeners
   //************************************************************** */
   // Command Handlers
+  @ExecuteCommand(ContactQueries.findContactById)
+  async findContactById(
+    @Payload() data: QueryContactByIdEvent,
+    @Ctx() context: NatsJetStreamContext
+  ): Promise<any> {
+    const subject = context.message.subject;
+    console.log(`MS - Received command ${ContactQueries.findContactById} on Orders Microservice`);
+    console.log('MS - ....with payload', data);
+    let cmdResult = "Query reached microservice";
+    // const cmdResult: any  =  this.contactService.create(data)
+
+    // Here you create Order and insert CreatedOrderEvent to the event database
+    // as a single transaction. The publish flag will be false false
+
+    // here you return the CreatedOrderEvent.
+    return cmdResult;
+  }
+
+
+  //************************************************************** */
+  // Contact Query command handlers and event listeners
+  //************************************************************** */
+  // Query Handlers
   @ExecuteCommand(ContactCommand.createContact)
   async createContactCommandHandler(
     @Payload() data: CreateContactEvent,

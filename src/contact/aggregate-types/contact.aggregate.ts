@@ -3,7 +3,7 @@ import { ContactAcctRel } from './../entities/contact.acct.rel.entity';
 import { ContactSource } from './../entities/contact.source.entity';
 import { ContactSaveService } from './../contact.save.service';
 import { Injectable, Inject } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Contact } from './../entities/contact.entity';
 import { AggregateRoot } from 'src/aggregrate/aggregateRoot';
 import { CreateContactDto } from '../dtos/create.contact.dto';
@@ -21,7 +21,8 @@ export class ContactAggregate extends AggregateRoot {
   constructor(
     private contactSaveService: ContactSaveService,
     @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
-    @Inject(RepoToken.CONTACT_SOURCE_REPOSITORY) private contactSourceRepository: Repository<ContactSource>
+    @Inject(RepoToken.CONTACT_SOURCE_REPOSITORY) private contactSourceRepository: Repository<ContactSource>,
+    @Inject(RepoToken.DATA_SOURCE) private dataSource: DataSource
   ) {super()};
 
   aggregate: ContactAggregateEntities = {
@@ -30,19 +31,12 @@ export class ContactAggregate extends AggregateRoot {
      contactAcctRel: null
   }
  
-  /* Constructs aggregate from parts of the event payload.  */
+  /* Constructs aggregate from parts from the create <domain> event object.  */
   async create(createContactEvent: CreateContactEvent): Promise<ContactAggregateEntities> {
     /* destructure Dto to extract aggregate entities */
     const { email, accountId, firstName, lastName, webSiteUrl, mobilePhone } = createContactEvent;
     const { sourceType: type, sourceName: name } = createContactEvent;
     
-    /* if contact exists, return aggregate with null entities. This will result in bypassing
-      save operation effectively implementing an idempotent behavior  */
-    // const contactExists: boolean = await this.runAsyncBusinessRule(BusinessRule.createContactNotExistCheck, ruleInputs);
-    // if (contactExists) {
-    //   return this.aggregate;
-    // }
-
     /* create contact instance and set the aggregate property */
     this.aggregate.contact = this.contactRepository.create(createContactEvent);
     
@@ -56,21 +50,29 @@ export class ContactAggregate extends AggregateRoot {
     return this.aggregate;
   };
 
-  /* used primary by applyChanges */
-  load(){};
+  /* returns entire aggregate  */
+  async findById(id): Promise<any> {
+    const contact = this.dataSource
+      .getRepository(Contact)
+      .createQueryBuilder("contact")
+      .where("contact.id = :id", {id: 1})
+      .getOne()
+    return contact;
+  };
 
   applyChanges() {};
 
-  async save(contactAggregateEntities: ContactAggregateEntities): Promise<TransactionStatus> {
+  async save(contactAggregateEntities: ContactAggregateEntities): Promise<Contact> {
     console.log(">>>> Inside contactAggregate.save()")
-    /* implements idempotent behavior */
+    /* implements idempotent behavior by responding with existing contact */
     const { contact } = contactAggregateEntities;
     const ruleInputs = { accountId: contact.accountId, email: contact.email };
-    const contactExist: boolean = await this.runAsyncBusinessRule(BusinessRule.contactExistCheck, ruleInputs);
-    console.log(`    contactExist value: ${contactExist}`)
-    // if (contactExists) {
-    //   return this.aggregate;
-    // }
+    const existingContact: Contact = await this.runAsyncBusinessRule(BusinessRule.contactExistCheck, ruleInputs);
+    console.log(`    contactExist value: ${existingContact}`)
+    if (existingContact) {  /* If exists, no need to call save. Just retrun existing aggregate root */
+      return existingContact;
+    } 
+    /* returns the aggregate root */
     return await this.contactSaveService.save(contactAggregateEntities) 
   }
  
@@ -96,16 +98,15 @@ export class ContactAggregate extends AggregateRoot {
   // Helper functions and business rules
   //***************************************************************************** 
   
-  async findContactByAcctandEmail(ruleInputs) {
+  async findContactByAcctandEmail(ruleInputs): Promise<Contact> {
     console.log(">>>> Inside findContactByAcctandEmail")
     const { accountId, email } = ruleInputs;
     const contact =  await this.contactRepository.findOne({
       where: { accountId, email }
     })
     console.log(`     contact: ${contact}`)
-    return contact ? true : false
+    return contact;
   }
-
 
 }
 

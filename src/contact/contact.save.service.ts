@@ -11,7 +11,7 @@ import { ContactAggregateEntities } from './aggregate-types/contact.aggregate.ty
 import { TransactionStatus } from './aggregate-types/transaction-status.type';
 
 
-// Clas is relagated to handling save transaction involving one or more aggregate entities
+// Class is relagated to handling save transaction involving one or more aggregate entities
 @Injectable()
 export class ContactSaveService {
   
@@ -21,7 +21,7 @@ export class ContactSaveService {
     @Inject(RepoToken.CONTACT_SOURCE_REPOSITORY) private contactSourceRepository: Repository<ContactSource>
   ) {}
   
-  async save(contactAggregateEntities: ContactAggregateEntities): Promise<TransactionStatus> {
+  async save(contactAggregateEntities: ContactAggregateEntities): Promise<Contact> {
     /* establish connection  */
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -31,13 +31,7 @@ export class ContactSaveService {
 
     /* initialize transaction status */
     let transactionStatus: TransactionStatus = { successful: true, errorMessage: ''};
-
-    /* if all aggregate entities are null, it means the aggregate.create service 
-       found entity exists and is signaling to bypass transaction logic. */
-    if (this.allAggregateEntitiesNull(contactAggregateEntities)) {
-      return transactionStatus;
-    }
-
+    
     /* start transaction */
     await queryRunner.startTransaction();
     
@@ -67,24 +61,24 @@ export class ContactSaveService {
       await queryRunner.release();
     }
 
-    return transactionStatus;
+    return contact;
   };
   
 
   // **************************************************************
   // Helpers
   // **************************************************************
-  allAggregateEntitiesNull(contactAggregateEntities) {
-    /* define predicate function */
-    const isNull = value => value === null;
+  // allAggregateEntitiesNull(contactAggregateEntities) {
+  //   /* define predicate function */
+  //   const isNull = value => value === null;
 
-    /* transfer entity values into array */
-    let entityArrayValues = [];
-    Object.keys(contactAggregateEntities).forEach((key:string) => entityArrayValues.push(contactAggregateEntities[key]) );
+  //   /* transfer entity values into array */
+  //   let entityArrayValues = [];
+  //   Object.keys(contactAggregateEntities).forEach((key:string) => entityArrayValues.push(contactAggregateEntities[key]) );
 
-    /* return if all values are null or not */
-    return entityArrayValues.every(isNull)
-  }
+  //   /* return if all values are null or not */
+  //   return entityArrayValues.every(isNull)
+  // }
   
 
 }
