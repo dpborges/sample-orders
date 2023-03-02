@@ -5,7 +5,9 @@ type Link = {
   href: string,
   rel: Relation
 }
-export interface StandardResponse  {
+
+/* Response used when creating a resource */
+export interface CreateEntityResponse  {
   id: number | string;
   link: Link;
 }

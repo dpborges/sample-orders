@@ -62,7 +62,8 @@ export class ContactAggregate extends AggregateRoot {
 
   applyChanges() {};
 
-  async save(contactAggregateEntities: ContactAggregateEntities): Promise<Contact> {
+  /* implements idempotent save behavior */
+  async idempotentSave(contactAggregateEntities: ContactAggregateEntities): Promise<Contact> {
     console.log(">>>> Inside contactAggregate.save()")
     /* implements idempotent behavior by responding with existing contact */
     const { contact } = contactAggregateEntities;
