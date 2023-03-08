@@ -4,8 +4,7 @@ export class AggregateRoot {
 
   private id: number;
   private version: number = 1;
-  private generateEvents = true;
-
+  
   constructor() {}
 
   getId(): number {

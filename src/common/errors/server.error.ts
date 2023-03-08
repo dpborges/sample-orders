@@ -3,21 +3,16 @@ import { BaseError } from "./base.error";
 import { ClientErrorDetail } from "./client.error.standard.text";
 
 /**
- * Generates Standard Client Error Message to send back as error response. The base 
+ * Generates Standard Server Error Message to send back as error response. The base 
  * class has additional methods to append reason and/or solution to the message text.
  * The base class constructor takes a statusErrorCode as a parameter, which in turn
  * calls setErrorProperties() to set the message text based on error Code. Subclasses,
  * like this one, are required to implement the setErrorProperties() method.
- * Sample Usage:
- *   let someError = new ClientError(400);
- *   someError.setReason(ClientErrorReasons.IncorrectSyntax)
- *            .setLongMessage("check you have open and close brackets")
- *   let someError = new ClientError(500);
- *   console.log(someError)
+ * For sample usage, see switch statment below:
  * @Constructor
  * @para {number} statusCode - used to generate the error object
  */
-export class ClientError extends BaseError {
+export class ServerError extends BaseError {
 
   constructor(statusCodeOrMessage: string | number ) {
     super(statusCodeOrMessage);
@@ -27,9 +22,10 @@ export class ClientError extends BaseError {
      be called by BaseError class when user sets the status code. */
   setErrorProperties(statusCode: number) {
     switch (statusCode) {
-      case 400:
-        this.setStatusCode(400);
-        this.setMessage("Bad Request");
+      case 500:
+        this.setStatusCode(500);
+        this.setMessage("Server not responding");
+        this.setLongMessage(ClientErrorDetail.TryAgainLater);
         break;
       default:
     }

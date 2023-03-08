@@ -7,16 +7,19 @@ import { Repository, DataSource } from 'typeorm';
 import { Contact } from './../entities/contact.entity';
 import { AggregateRoot } from 'src/aggregrate/aggregateRoot';
 import { CreateContactDto } from '../dtos/create.contact.dto';
-import { RepoToken } from '../repos/repo.token.enum';
+import { RepoToken } from '../../db-providers/repo.token.enum';
 import { ContactAggregateEntities } from './contact.aggregate.type';
-import { BusinessRule } from './business-rule.enum';
-import { TransactionStatus } from './transaction-status.type'
-import { CreateContactEvent } from 'src/events/contacts/create-contact-event';
+import { BusinessRule } from '../business-rules/business-rule.enum';
+// import { TransactionStatus } from './transaction-status.type-DELETE-ts'
+import { CreateContactEvent } from 'src/events/contact/commands';
+import { ContactCreatedEvent } from 'src/events/contact/domainChanges';
 
 // class used to construct aggregate object with related entities from event payload/
-// This class also has creational business rules and/or save business rules
+// This class also has creational business rules and/or update business rules
 @Injectable()
 export class ContactAggregate extends AggregateRoot {
+
+  private events: Array<ContactCreatedEvent> = [];
 
   constructor(
     private contactSaveService: ContactSaveService,
@@ -38,7 +41,10 @@ export class ContactAggregate extends AggregateRoot {
     const { sourceType: type, sourceName: name } = createContactEvent;
     
     /* create contact instance and set the aggregate property */
-    this.aggregate.contact = this.contactRepository.create(createContactEvent);
+    // this.aggregate.contact = this.contactRepository.create(createContactEvent);
+    this.aggregate.contact = this.contactRepository.create({
+      accountId, email, firstName, lastName, webSiteUrl, mobilePhone
+    });
     
     /* create contact source and set the aggregate property */
     this.aggregate.contactSource = this.contactSourceRepository.create({type, name});
@@ -62,19 +68,25 @@ export class ContactAggregate extends AggregateRoot {
 
   applyChanges() {};
 
-  /* implements idempotent save behavior */
-  async idempotentSave(contactAggregateEntities: ContactAggregateEntities): Promise<Contact> {
+  /* implements idempotent create behavior on top of the generic contactSaveService */
+  async idempotentCreate(
+    contactAggregateEntities: ContactAggregateEntities,
+    generatedEvents: Array<ContactCreatedEvent>
+  ): Promise<Contact> {
     console.log(">>>> Inside contactAggregate.save()")
-    /* implements idempotent behavior by responding with existing contact */
+
+    /* implements idempotent behavior by returning contact, if already exist */
     const { contact } = contactAggregateEntities;
     const ruleInputs = { accountId: contact.accountId, email: contact.email };
     const existingContact: Contact = await this.runAsyncBusinessRule(BusinessRule.contactExistCheck, ruleInputs);
     console.log(`    contactExist value: ${existingContact}`)
-    if (existingContact) {  /* If exists, no need to call save. Just retrun existing aggregate root */
-      return existingContact;
+    if (existingContact) {  /* If exists, no need to call save or persist domainCreatedEvent. Just return existing aggregate root */
+      return existingContact; 
     } 
+    console.log("    generated Event ", JSON.stringify(generatedEvents))
+
     /* returns the aggregate root */
-    return await this.contactSaveService.save(contactAggregateEntities) 
+    return await this.contactSaveService.save(contactAggregateEntities, generatedEvents) 
   }
  
  async runAsyncBusinessRule(businessRule, ruleInputs) {
@@ -90,15 +102,21 @@ export class ContactAggregate extends AggregateRoot {
     }
     return ruleResult;
   }
+
+  // /* generate CreateDomainEvent;  NOTE: create events are scoped to the aggregate root 
+  //    If changes to related tables are needed downstream, the client must fetch the entire aggregate. */
+  // generateCreateDomainEvent(contactCreatedEvent: ContactCreatedEvent): Array<ContactCreatedEvent> {
+  //   return this.events.concat(contactCreatedEvent);
+  // }
   
 
-  validate(){};
+  validate() {};
 
 
   //***************************************************************************** 
   // Helper functions and business rules
   //***************************************************************************** 
-  
+  /* business rule for aggregateRoot Exist Check */
   async findContactByAcctandEmail(ruleInputs): Promise<Contact> {
     console.log(">>>> Inside findContactByAcctandEmail")
     const { accountId, email } = ruleInputs;

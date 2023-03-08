@@ -1,12 +1,17 @@
 import { StandardErrorResponse } from "./error.response";
 
+/**
+ * Base class used to generate Error Message to send back as an error response. 
+ * To use it, define your own classification of errors by extending from this class
+ * and overriding the setError Properities. This method will set the various 
+ * error properties based on the error number.
+ */ 
 export class BaseError {
 
   statusCode:  number;
   message:     string;  /* generic message like 'Bad Request' */
-  reason:      string;  /* use to qualify short generic message */
-  longMessage: string;  /* explain how to fix or provide fields affected */ 
-  docLink:     string;  /* provide doc link that documents how to fix error, if available  */ 
+  longMessage: string;
+  reason:      string;
 
   /* if a constructor parm not provided, use setter methods to set properties */
   constructor(statusCodeOrMessage: string | number ) {
@@ -17,11 +22,7 @@ export class BaseError {
       this.setErrorProperties(statusCode); /* expects this method to be defined in subclass */
     } 
   }
-
-  setDocLink(docLink: string) {
-    this.docLink = docLink;
-  }
-
+  
   setMessage(msg: string) {
     this.message = msg;
   }
@@ -30,20 +31,25 @@ export class BaseError {
     this.statusCode = code;
   }
 
-  setLongMessage(longMsg: string)  {
-    this.longMessage = longMsg;
+   /* Appends to message to provide more specific reason for the generic error code 
+      This is called first,followed by setLongMessage, so reading flows better.
+      Note that this method returns this, which allows you to chaing a the 
+      setLongMessage() method. */
+  setReason(reason: string) {
+    this.message = `${this.message}; ${reason}`;
+    return this;
   }
 
-  setReason(reason: string) {
-    this.reason = reason;
+  /* appends to message to provide an explanation, solution, or link of external 
+     documentation available. This is typically called after setReason */ 
+  setLongMessage(longMsg: string)  {
+    this.message = `${this.message}; ${longMsg}`;
   }
 
   toString(): StandardErrorResponse {
     let errorResponse: StandardErrorResponse;
     if (this.statusCode) { errorResponse.statusCode = this.statusCode;  } 
     if (this.message) { errorResponse.message = this.message;  } 
-    if (this.longMessage) { errorResponse.longMessage = this.longMessage;  } 
-    if (this.docLink) { errorResponse.docLink = this.docLink;  } 
     return errorResponse;
   }
 

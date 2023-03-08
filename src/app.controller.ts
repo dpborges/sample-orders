@@ -1,3 +1,4 @@
+import { PublishUnpublishedEventsCmdPayload } from './events/outbox/commands';
 import { NatsJetStreamContext } from '@nestjs-plugins/nestjs-nats-jetstream-transport';
 import { Controller, Get, UseFilters } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
@@ -12,18 +13,18 @@ import { AppService } from './app.service';
 import { Subjects } from './events/orders/subjects'; 
 import { CreateOrderEvent, UpdateOrderEvent, DeleteOrderEvent } from './events/orders';
 import { OrderCreatedEvent, OrderUpdatedEvent, OrderDeletedEvent } from './events/orders';
-import { Patterns } from './commands/orders/patterns';
+// import { Patterns } from './commands/orders/patterns';
 import { ExceptionFilter } from './common/filters';
 import { Contact } from './contact/entities/contact.entity';
 import { CreateContactDto } from './contact/dtos/create.contact.dto';
 // import { DomainMgtService } from './domain-mgt/domain-mgt.service';
 import { ContactService } from './contact/contact.service';
-import { ContactCommand } from './commands/contacts/contact-commands';
-import { CreateContactEvent } from './events/contacts/create-contact-event';
-import { ContactQueries } from './commands/contacts/contact-queries';
-import { QueryContactByIdEvent } from './events/contacts/query-contact-by-id';
-
-
+import { ContactCommand } from './events/contact/commands';
+import { OutboxCommands } from './events/outbox/commands';
+import { CreateContactEvent } from './events/contact/commands';
+import { ContactQueries } from './events/contact/queries';
+import { QueryContactByIdPayload } from './events/contact/queries';
+import { Console } from 'console';
 
 @UseFilters(new ExceptionFilter())
 @Controller()
@@ -40,12 +41,11 @@ export class AppController {
   }
 
   //************************************************************** */
-  // Contact command handlers and event listeners
+  // Contact Query Handlers
   //************************************************************** */
-  // Command Handlers
   @ExecuteCommand(ContactQueries.findContactById)
   async findContactById(
-    @Payload() data: QueryContactByIdEvent,
+    @Payload() data: QueryContactByIdPayload,
     @Ctx() context: NatsJetStreamContext
   ): Promise<any> {
     const subject = context.message.subject;
@@ -63,7 +63,7 @@ export class AppController {
 
 
   //************************************************************** */
-  // Contact Query command handlers and event listeners
+  // Contact CUD Handlers
   //************************************************************** */
   // Query Handlers
   @ExecuteCommand(ContactCommand.createContact)
@@ -71,16 +71,51 @@ export class AppController {
     @Payload() data: CreateContactEvent,
     @Ctx() context: NatsJetStreamContext
   ): Promise<any> {
+    const header = data.header;
+    const message = data.message;
     const subject = context.message.subject;
-    console.log(`MS - Received command ${ContactCommand.createContact} on Orders Microservice`);
-    console.log('MS - ....with payload', data);
-    const cmdResult: any  =  this.contactService.create(data)
+    console.log(`MS - Received subject ${subject} on Contact Microservice`);
+    console.log('MS - ....with data', data);
+    console.log('MS - ....with header', header);
+    console.log('MS - ....with message', message);
+    const cmdResult: any  =  await this.contactService.create(message)
 
     // Here you create Order and insert CreatedOrderEvent to the event database
     // as a single transaction. The publish flag will be false false
 
     // here you return the CreatedOrderEvent.
     return cmdResult;
+  }
+
+
+  //************************************************************** */
+  // Outbox command handlers 
+  //************************************************************** */
+  
+  /**
+   * Publishes unpublished events in the outbox to the ESB. Since it a system
+   * command and not user driven event, no need to extract header properties
+   * @param data 
+   * @param context 
+   * @returns 
+   */
+  @ExecuteCommand(OutboxCommands.publishUnpublishedEvents)
+  async publishUnpublishedEvents(
+    @Payload() data: PublishUnpublishedEventsCmdPayload,
+    @Ctx() context: NatsJetStreamContext
+  ): Promise<any> {
+    const subject = context.message.subject;
+    const headers = context.message.headers;
+    console.log(`MS - Received command ${OutboxCommands.publishUnpublishedEvents} on Outbox command handler`);
+    console.log('MS - ....with payload', data);
+    // const cmdResult: any  =  this.contactService.create(data)
+    // console.log("NatsJetStream subject ", subject)
+    // console.log("NatsJetStream headers ", headers)
+    // console.log("NatsJetStream seq ", seq)
+    // console.log("NatsJetStream sid ", sid)
+
+
+    return `Processed command ${OutboxCommands.publishUnpublishedEvents}`;
   }
 
   //Event Listeners
@@ -156,23 +191,26 @@ export class AppController {
   // Order command handlers and event listeners
   //************************************************************** */
   //Listens for command Pattern
-  @ExecuteCommand({ cmd: Patterns.CreateOrder })
-  async createOrderCommandHandler(
-    @Payload() data: CreateOrderEvent,
-    @Ctx() context: NatsJetStreamContext
-  ): Promise<any> {
-    const subject = context.message.subject;
-    console.log(`MS - Received command ${subject} on Orders Microservice`);
-    console.log('MS - ....with payload', data);
-    const result = await this.appService.createOrder()
+  // @ExecuteCommand({ cmd: Patterns.CreateOrder })
+  // async createOrderCommandHandler(
+  //   @Payload() data: CreateOrderEvent,
+  //   @Ctx() context: NatsJetStreamContext
+  // ): Promise<any> {
+  //   const subject = context.message.subject;
+  //   console.log(`MS - Received command ${subject} on Orders Microservice`);
+  //   console.log('MS - ....with payload', data);
+  //   const result = await this.appService.createOrder()
 
-    // Here you create Order and insert CreatedOrderEvent to the event database
-    // as a single transaction. The publish flag will be false false
+  //   // Here you create Order and insert CreatedOrderEvent to the event database
+  //   // as a single transaction. The publish flag will be false false
 
-    // here you return the CreatedOrderEvent.
-    return "order XYZ created";
-  }
+  //   // here you return the CreatedOrderEvent.
+  //   return "order XYZ created";
+  // }
 
+  //************************************************************** */
+  // Order event listeners
+  //************************************************************** */
   // Listens for event published on Nats
   // IMPORTANT: Listeners that are updating downstream data stores should be 
   // version their entities to ensure CUD events are processed in order

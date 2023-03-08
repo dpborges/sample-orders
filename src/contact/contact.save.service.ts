@@ -6,22 +6,27 @@ import { ContactAggregate } from './aggregate-types/contact.aggregate';
 import { Contact } from './entities/contact.entity';
 import { ContactSource } from './entities/contact.source.entity';
 import { ContactAcctRel } from './entities/contact.acct.rel.entity';
-import { RepoToken } from './repos/repo.token.enum';
+import { RepoToken } from '../db-providers/repo.token.enum';
 import { ContactAggregateEntities } from './aggregate-types/contact.aggregate.type';
-import { TransactionStatus } from './aggregate-types/transaction-status.type';
+import { ContactCreatedEvent } from 'src/events/contact/domainChanges';
+import { ContactOutbox } from '../outbox/entities/contact.outbox.entity';
 
-
-// Class is relagated to handling save transaction involving one or more aggregate entities
+// Class is relegated to handling save transaction involving one or more aggregate entities
+// Persistent rules are handled in the domain aggregate class
 @Injectable()
 export class ContactSaveService {
   
   constructor(
     @Inject(RepoToken.DATA_SOURCE) private dataSource: DataSource,
     @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
-    @Inject(RepoToken.CONTACT_SOURCE_REPOSITORY) private contactSourceRepository: Repository<ContactSource>
+    @Inject(RepoToken.CONTACT_SOURCE_REPOSITORY) private contactSourceRepository: Repository<ContactSource>,
+    @Inject(RepoToken.CONTACT_OUTBOX_REPOSITORY) private contactOutboxRepository: Repository<ContactOutbox>
   ) {}
   
-  async save(contactAggregateEntities: ContactAggregateEntities): Promise<Contact> {
+  async save(
+      contactAggregateEntities: ContactAggregateEntities,
+      generatedEvents: Array<ContactCreatedEvent>
+    ): Promise<Contact> {
     /* establish connection  */
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -29,9 +34,6 @@ export class ContactSaveService {
     /* destructure Aggregate Entities  */
     let { contact, contactSource, contactAcctRel } = contactAggregateEntities;
 
-    /* initialize transaction status */
-    let transactionStatus: TransactionStatus = { successful: true, errorMessage: ''};
-    
     /* start transaction */
     await queryRunner.startTransaction();
     
@@ -50,12 +52,16 @@ export class ContactSaveService {
       if (!contactAcctRel) {
         console.log("NO CONTACT ACCT RELATION")
       } 
+      /* save generated events to outbox */
+      if (generatedEvents.length > 0) {
+
+      }
       await queryRunner.commitTransaction();
     } catch (err) {
-      // rollback changes and set success flag to false
+      // rollback changes 
       await queryRunner.rollbackTransaction();
-      transactionStatus.successful = false;
-      transactionStatus.errorMessage = `ERROR: ${err}`
+      // nullify aggregate root object
+      contact = null;
     } finally {
       // release query runner which is manually created:
       await queryRunner.release();
@@ -63,6 +69,12 @@ export class ContactSaveService {
 
     return contact;
   };
+
+  
+
+  async saveEventToOutbox(contactCreatedEvent: ContactCreatedEvent) {
+
+  }
   
 
   // **************************************************************

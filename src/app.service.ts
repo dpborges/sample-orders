@@ -7,7 +7,7 @@ import { Observable } from 'rxjs';
 import { OrderCreatedEvent } from './events/orders';
 import { Subjects } from './events/orders/subjects';
 import { RpcException } from '@nestjs/microservices';
-import { RepoToken } from './contact/repos/repo.token.enum';
+import { RepoToken } from './db-providers/repo.token.enum';
 import { Contact } from './contact/entities/contact.entity';
 // import { DomainMgtService } from './domain-mgt/domain-mgt.service';
 
