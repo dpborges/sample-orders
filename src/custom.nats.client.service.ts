@@ -34,7 +34,7 @@ export class CustomNatsClient {
     
   /* Publishes an event. PubAck is the response returned by the JetStream server 
      when a message is added to a stream. */
-  publishEvent<T>(subject: Subjects, event: T ) :Promise<any> {
+  publishEvent<T>(subject: string, event: T ) :Promise<any> {
     return new Promise((resolve, reject) => {
       this.natsClient
         .emit<T>(subject, event)

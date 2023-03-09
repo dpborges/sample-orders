@@ -35,21 +35,21 @@ export class OutboxService {
   async publishUnpublishedEvents(payload: PublishUnpublishedEventsCmdPayload): Promise<any[]> {
     console.log(">>>> Inside publishUnpublishedEvents method");
 
+    /* find unpublished events in outbox fora  given accountId */
     const outboxInstances: Array<ContactOutbox> = 
       await this.contactOutboxRepository.find({
         where: { accountId: payload.accountId }
       });
     
+    /* init unpublished events array */
     let unpublishedEvents: Array<SubjectAndPayload> = [];
 
+    /* constructed subject and payload object and save in array of unpublished events */
     outboxInstances.forEach((outboxInstance) => {
-
-      let subjectAndPayload: SubjectAndPayload = {
-        subject: outboxInstance.event,
-        payload: JSON.parse(outboxInstance.payload)
-      }
-      // console.log("    Unpublished event subject ", subject)
-      // console.log("    Unpublished event payload ", payload)
+      let subject = outboxInstance.subject;
+      let payload: ContactCreatedEvent = JSON.parse(outboxInstance.payload)
+      let subjectAndPayload: SubjectAndPayload = { subject, payload }
+      
       unpublishedEvents = unpublishedEvents.concat(subjectAndPayload)
     })
     this.domainEventPublisher.publishEvents(unpublishedEvents)
@@ -68,7 +68,7 @@ export class OutboxService {
     const serializedContactCreatedEvent = this.generateContactCreatedEvent(createContactEvent);
     const contactCreatedEventOutboxInstance:ContactOutbox = this.contactOutboxRepository.create({
       accountId, 
-      event: Subjects.ContactCreated,
+      subject: Subjects.ContactCreated,
       payload: serializedContactCreatedEvent,
       userId,
       status: OutboxStatus.unpublished

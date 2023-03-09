@@ -28,7 +28,7 @@ export class ContactOutbox1676601426206 implements MigrationInterface {
         id            SERIAL PRIMARY KEY,
         account_id    integer  NOT NULL,
         user_id       character varying(21) NOT NULL DEFAULT 'nouser',
-        event         character varying,
+        subject       character varying,
         payload       character varying,
         status        character(2) DEFAULT 'un',
         create_date timestamp with time zone NOT NULL DEFAULT now(),

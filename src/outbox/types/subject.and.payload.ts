@@ -2,6 +2,6 @@ import { ContactCreatedEvent } from '../../events/contact/domainChanges/contact-
 import { Subjects } from '../../events/contact/domainChanges';
 
 export interface SubjectAndPayload {
-  subject: String,
+  subject: string,
   payload: ContactCreatedEvent
 }

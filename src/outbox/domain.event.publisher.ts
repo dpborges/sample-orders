@@ -26,8 +26,9 @@ export class DomainEventPublisher {
 
     eventInstances.forEach(async (eventInstance) => {
       console.log("    eventInstance ", eventInstance)
-      let subject = eventInstance.event;
+      let subject = eventInstance.subject;
       let payload = eventInstance.payload;
+
       let publishResult = await this.customNatsClient.publishEvent(subject, payload);
       // console.log(`MS - Acknowledgement from publishing orderCreatedEvent: ${publishResult}`);
     })
@@ -46,7 +47,7 @@ export class DomainEventPublisher {
     const serializedContactCreatedEvent = this.generateContactCreatedEvent(createContactEvent);
     const contactCreatedEventOutboxInstance:ContactOutbox = this.contactOutboxRepository.create({
       accountId, 
-      event: Subjects.ContactCreated,
+      subject: Subjects.ContactCreated,
       payload: serializedContactCreatedEvent,
       userId,
       status: OutboxStatus.unpublished

@@ -11,7 +11,7 @@ import {
   Payload,
 } from '@nestjs/microservices';
 import { AppService } from './app.service';
-import { Subjects } from './events/orders/subjects'; 
+import { Subjects } from './events/contact/domainChanges'; 
 import { CreateOrderEvent, UpdateOrderEvent, DeleteOrderEvent } from './events/orders';
 import { OrderCreatedEvent, OrderUpdatedEvent, OrderDeletedEvent } from './events/orders';
 // import { Patterns } from './commands/orders/patterns';
@@ -25,7 +25,7 @@ import { OutboxCommands } from './events/outbox/commands';
 import { CreateContactEvent } from './events/contact/commands';
 import { ContactQueries } from './events/contact/queries';
 import { QueryContactByIdPayload } from './events/contact/queries';
-import { Console } from 'console';
+import { ContactCreatedEvent } from './events/contact/domainChanges';
 
 
 @UseFilters(new ExceptionFilter())
@@ -118,8 +118,27 @@ export class AppController {
     // console.log("NatsJetStream seq ", seq)
     // console.log("NatsJetStream sid ", sid)
 
-
     return `Processed command ${OutboxCommands.publishUnpublishedEvents}`;
+  }
+
+  //************************************************************** */
+  // ContactCreated Event Listener
+  //************************************************************** */
+  // Listens for event published on Nats
+  // IMPORTANT: Listeners that are updating downstream data stores should be 
+  // version their entities to ensure CUD events are processed in order
+  // SEE UDEMY LESSON 42 and refer to link below on Typeorm optimistic concurrency control
+  // https://github.com/typeorm/typeorm/issues/3608
+  // @EventPattern('order.created')
+  @ListenForEvent(Subjects.ContactCreated)
+  public async contactCreatedHandler(
+    @Ctx() context: NatsJetStreamContext,
+    @Payload() data: ContactCreatedEvent,
+  ) {
+    /* process message */
+    /* mark outbox entry as completed  */
+    context.message.ack();  /* acknowledge message */
+    console.log(`MS - ContactCreatedEvent Listener received event subject: ${context.message.subject} data: ${data}`);
   }
 
   //Event Listeners
@@ -220,17 +239,17 @@ export class AppController {
   // SEE UDEMY LESSON 42 and refer to link below on Typeorm optimistic concurrency control
   // https://github.com/typeorm/typeorm/issues/3608
   // @EventPattern('order.created')
-  @ListenForEvent(Subjects.OrderCreated)
-  public async orderCreatedHandler(
-    @Ctx() context: NatsJetStreamContext,
-    @Payload() data: OrderCreatedEvent,
-  ) {
-    console.log(`MS - OrderCreatedEvent Listener received event subject: ${context.message.subject} data: ${data}`);
-    /* process message */
-    /* mark outbox entry as completed  */
-    context.message.ack();  /* acknowledge message */
-    console.log(`MS - OrderCreatedEvent Listener processed and acknowledged event: ${context.message.subject} data: ${data}`);
-  }
+  // @ListenForEvent(Subjects.OrderCreated)
+  // public async orderCreatedHandler(
+  //   @Ctx() context: NatsJetStreamContext,
+  //   @Payload() data: OrderCreatedEvent,
+  // ) {
+  //   console.log(`MS - OrderCreatedEvent Listener received event subject: ${context.message.subject} data: ${data}`);
+  //   /* process message */
+  //   /* mark outbox entry as completed  */
+  //   context.message.ack();  /* acknowledge message */
+  //   console.log(`MS - OrderCreatedEvent Listener processed and acknowledged event: ${context.message.subject} data: ${data}`);
+  // }
 
   // Subscribes to order.updated
   // @EventPattern('order.updated')

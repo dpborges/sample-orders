@@ -66,7 +66,8 @@ export class ContactService {
       return new ServerError(500);
     }
     
-    /* Triggers Outbox handler to read unpublished events from outbox and publish to ESB */
+    /* Triggers Outbox handler to read unpublished events from outbox, for a given account,
+       and publish to ESB */
     let commandPayload: PublishUnpublishedEventsCmdPayload = { accountId }
     let commandResult = await this.customNatsClient.sendCommand(
       OutboxCommands.publishUnpublishedEvents, commandPayload

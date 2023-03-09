@@ -50,7 +50,7 @@ async function bootstrap() {
       },
       streamConfig: {
         name: 'orders-stream',
-        subjects: ['order.*'],
+        subjects: ['contact.*'],
       },
     }),
   };

@@ -22,7 +22,7 @@ export class ContactOutbox {
   userId: string;
    
   @Column()
-  event: string;
+  subject: string;
 
   @Column()  
   payload: string;
