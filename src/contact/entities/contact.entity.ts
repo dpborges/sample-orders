@@ -34,9 +34,6 @@ export class Contact {
 
   @Column()  
   lastName: string;
-  
-  @Column()
-  webSiteUrl: string;
 
   @Column()
   mobilePhone: string;

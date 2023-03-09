@@ -1,3 +1,4 @@
+import { OutboxService } from './../outbox/outbox.service';
 import { CreateContactResponse } from './../common/responses/command.response';
 import { ContactSaveService } from './contact.save.service';
 import { createConnection } from 'typeorm';
@@ -16,7 +17,7 @@ import { ContactCreatedEvent } from '../events/contact/domainChanges';
 import { CustomNatsClient } from 'src/custom.nats.client.service';
 import { OutboxCommands } from '../events/outbox/commands';
 import { PublishUnpublishedEventsCmdPayload } from '../events/outbox/commands'
-
+import { ContactOutbox } from '../outbox/entities/contact.outbox.entity';
 
 @Injectable()
 export class ContactService {
@@ -28,7 +29,8 @@ export class ContactService {
 
   constructor(
     private contactAggregate: ContactAggregate,
-    private customNatsClient: CustomNatsClient
+    private customNatsClient: CustomNatsClient,
+    private outboxService: OutboxService
   
     // @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
   ) {}
@@ -41,17 +43,22 @@ export class ContactService {
   async create(createContactEvent: CreateContactEvent):  Promise<CreateEntityResponse | ServerError> {
     console.log(">>>> Inside contactService.create method");
     console.log(`    var createContactEvent: ${JSON.stringify(createContactEvent)}`);
+    const { sessionId, userId } = createContactEvent.header;
+    const { accountId, email, firstName, lastName } = createContactEvent.message;
 
     /* create the aggregate */
     const aggregate: ContactAggregateEntities = await this.contactAggregate.create(createContactEvent);
     console.log("This is returned contact aggregate ", aggregate);
 
-    /* generate CreatedEvent and save in array */
-    let {accountId, email, firstName, lastName } = createContactEvent;
-    const contactCreatedEvent: ContactCreatedEvent = { accountId, email, firstName, lastName };
-    this.generatedEvents = this.generatedEvents.concat(contactCreatedEvent);
+    /* create outbox instance of contactCreatedEvent to save in the outbox */
+    let contactOutboxInstance: ContactOutbox =
+        await this.outboxService.generateContactCreatedInstances(createContactEvent);
+    /* append instance to the aggregate  */
+    aggregate.contactOutbox = contactOutboxInstance;
 
-    /* save the aggregate members, the generated events to outbox, and return aggregate root */
+    console.log("    contactOutboxInstance ", contactOutboxInstance);
+
+    /* Save the aggregate members, the generated event(s) to outbox, and return aggregate root */
     let aggregateRoot: Contact = await this.contactAggregate.idempotentCreate(aggregate, this.generatedEvents);
 
     /* if save was NOT successful, return error response */
@@ -59,7 +66,7 @@ export class ContactService {
       return new ServerError(500);
     }
     
-    /* Trigger Outbox handler to read unpublished events from outbox and publish to ESB */
+    /* Triggers Outbox handler to read unpublished events from outbox and publish to ESB */
     let commandPayload: PublishUnpublishedEventsCmdPayload = { accountId }
     let commandResult = await this.customNatsClient.sendCommand(
       OutboxCommands.publishUnpublishedEvents, commandPayload

@@ -37,18 +37,18 @@ export class ContactAggregate extends AggregateRoot {
   /* Constructs aggregate from parts from the create <domain> event object.  */
   async create(createContactEvent: CreateContactEvent): Promise<ContactAggregateEntities> {
     /* destructure Dto to extract aggregate entities */
-    const { email, accountId, firstName, lastName, webSiteUrl, mobilePhone } = createContactEvent;
-    const { sourceType: type, sourceName: name } = createContactEvent;
+    const { email, accountId, firstName, lastName, mobilePhone } = createContactEvent.message;
+    const { sourceType: type, sourceName: name } = createContactEvent.message;
     
     /* create contact instance and set the aggregate property */
     // this.aggregate.contact = this.contactRepository.create(createContactEvent);
     this.aggregate.contact = this.contactRepository.create({
-      accountId, email, firstName, lastName, webSiteUrl, mobilePhone
+      accountId, email, firstName, lastName,  mobilePhone
     });
     
     /* create contact source and set the aggregate property */
     this.aggregate.contactSource = this.contactSourceRepository.create({type, name});
-    
+
     /* assign default version to new contact aggregate */
     this.aggregate.contact.version = this.getInitialVersion();  // append version from aggregate root
 

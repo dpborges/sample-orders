@@ -4,57 +4,35 @@ import { Injectable, Inject } from '@nestjs/common';
 import { CreateContactEvent } from '../events/contact/commands/create-contact-event';
 import { ServerError } from '../common/errors/server.error';
 import { ClientErrorReasons } from '../common/errors/client.error.standard.text';
-import { PublishUnpublishedEventsCmdPayload } from '../events/outbox/commands';
+// import { PublishUnpublishedEventsCmdPayload } from '../events/outbox/commands';
 import { RepoToken } from '../db-providers/repo.token.enum';
 import { ContactOutbox } from './entities/contact.outbox.entity';
 import { OutboxStatus } from './outbox.status.enum';
 import { Subjects } from '../events/contact/domainChanges';
-import { DomainEventPublisher } from './domain.event.publisher';
 import { SubjectAndPayload } from './types/subject.and.payload';
+import { CustomNatsClient } from '../custom.nats.client.service';
 
 @Injectable()
-export class OutboxService {
+export class DomainEventPublisher {
   
-  // private generatedEvents: Array<ContactCreatedEvent> = [];
-
-  /* Create Dto */
-  // private createContactDto: CreateContactDto;
-
   constructor(
-    // private contactAggregate: ContactAggregate,
-    // private customNatsClient: CustomNatsClient
-    private domainEventPublisher: DomainEventPublisher,
+    private customNatsClient: CustomNatsClient,
     @Inject(RepoToken.CONTACT_OUTBOX_REPOSITORY) private contactOutboxRepository: Repository<ContactOutbox>,
   ) {}
   
-  // async getAggregate<T>(id: number){
-  //   return this.contactAggregate.findById(id);
-  // }
+  // publish unpublished events and change status flag to 'published' in outbox
+  async publishEvents<ContactCreatedEvent>(eventInstances: Array<SubjectAndPayload>): Promise<any> {
+    console.log(">>>> Inside publishEvents method");
 
-  // publish unpublished events in outbox for a given account
-  async publishUnpublishedEvents(payload: PublishUnpublishedEventsCmdPayload): Promise<any[]> {
-    console.log(">>>> Inside publishUnpublishedEvents method");
-
-    const outboxInstances: Array<ContactOutbox> = 
-      await this.contactOutboxRepository.find({
-        where: { accountId: payload.accountId }
-      });
-    
-    let unpublishedEvents: Array<SubjectAndPayload> = [];
-
-    outboxInstances.forEach((outboxInstance) => {
-
-      let subjectAndPayload: SubjectAndPayload = {
-        subject: outboxInstance.event,
-        payload: JSON.parse(outboxInstance.payload)
-      }
-      // console.log("    Unpublished event subject ", subject)
-      // console.log("    Unpublished event payload ", payload)
-      unpublishedEvents = unpublishedEvents.concat(subjectAndPayload)
+    eventInstances.forEach(async (eventInstance) => {
+      console.log("    eventInstance ", eventInstance)
+      let subject = eventInstance.event;
+      let payload = eventInstance.payload;
+      let publishResult = await this.customNatsClient.publishEvent(subject, payload);
+      // console.log(`MS - Acknowledgement from publishing orderCreatedEvent: ${publishResult}`);
     })
-    this.domainEventPublisher.publishEvents(unpublishedEvents)
-    console.log("    Unpublished events array ", unpublishedEvents)
-    return unpublishedEvents;
+  
+    return 'unpublishedEvents';
   }
 
   /* generates the contactCreatedEvent and returns an outbox entity instance

@@ -1,3 +1,4 @@
+import { OutboxService } from './outbox/outbox.service';
 import { PublishUnpublishedEventsCmdPayload } from './events/outbox/commands';
 import { NatsJetStreamContext } from '@nestjs-plugins/nestjs-nats-jetstream-transport';
 import { Controller, Get, UseFilters } from '@nestjs/common';
@@ -26,12 +27,14 @@ import { ContactQueries } from './events/contact/queries';
 import { QueryContactByIdPayload } from './events/contact/queries';
 import { Console } from 'console';
 
+
 @UseFilters(new ExceptionFilter())
 @Controller()
 export class AppController {
   constructor(
     private readonly appService: AppService,
-    private readonly contactService: ContactService
+    private readonly contactService: ContactService,
+    private readonly outboxService:  OutboxService
     ) {}
 
   /* Rest End Point */
@@ -49,10 +52,10 @@ export class AppController {
     @Ctx() context: NatsJetStreamContext
   ): Promise<any> {
     const subject = context.message.subject;
-    console.log(`MS - Received command ${ContactQueries.findContactById} on Orders Microservice`);
+    console.log(`MS - Received ${ContactQueries.findContactById} in Orders Microservice`);
     console.log('MS - ....with payload', data);
     let cmdResult = "Query reached microservice";
-    // const cmdResult: any  =  this.contactService.create(data)
+    // const cmdResult: any  =  this.outboxService.publishUnpublishedEvents
 
     // Here you create Order and insert CreatedOrderEvent to the event database
     // as a single transaction. The publish flag will be false false
@@ -65,7 +68,7 @@ export class AppController {
   //************************************************************** */
   // Contact CUD Handlers
   //************************************************************** */
-  // Query Handlers
+  
   @ExecuteCommand(ContactCommand.createContact)
   async createContactCommandHandler(
     @Payload() data: CreateContactEvent,
@@ -78,7 +81,7 @@ export class AppController {
     console.log('MS - ....with data', data);
     console.log('MS - ....with header', header);
     console.log('MS - ....with message', message);
-    const cmdResult: any  =  await this.contactService.create(message)
+    const cmdResult: any  =  await this.contactService.create(data)
 
     // Here you create Order and insert CreatedOrderEvent to the event database
     // as a single transaction. The publish flag will be false false
@@ -93,11 +96,12 @@ export class AppController {
   //************************************************************** */
   
   /**
-   * Publishes unpublished events in the outbox to the ESB. Since it a system
-   * command and not user driven event, no need to extract header properties
-   * @param data 
-   * @param context 
-   * @returns 
+   * Publishes unpublished events in the outbox to the ESB for a given accountId. 
+   * Since it a system command and not user driven event, no need to extract header 
+   * properties
+   * @param data - is an object with accountId (eg. { accountId })
+   * @param context - standard Nats Jetstream context
+   * @returns void
    */
   @ExecuteCommand(OutboxCommands.publishUnpublishedEvents)
   async publishUnpublishedEvents(
@@ -108,7 +112,7 @@ export class AppController {
     const headers = context.message.headers;
     console.log(`MS - Received command ${OutboxCommands.publishUnpublishedEvents} on Outbox command handler`);
     console.log('MS - ....with payload', data);
-    // const cmdResult: any  =  this.contactService.create(data)
+    const cmdResult: any = this.outboxService.publishUnpublishedEvents(data)
     // console.log("NatsJetStream subject ", subject)
     // console.log("NatsJetStream headers ", headers)
     // console.log("NatsJetStream seq ", seq)
@@ -156,7 +160,6 @@ export class AppController {
   //     accountId: 1001,
   //     firstName: 'Dan',
   //     lastName: 'Borges',
-  //     webSiteUrl: 'www.pitchinclub.com',
   //     mobilePhone: '9175554343'
   //   }
   //   return this.contactService.create(createContactDto)

@@ -25,14 +25,15 @@ export class ContactSaveService {
   
   async save(
       contactAggregateEntities: ContactAggregateEntities,
-      generatedEvents: Array<ContactCreatedEvent>
+      generatedEvents: Array<ContactCreatedEvent>,
+      // headerInfo: 
     ): Promise<Contact> {
     /* establish connection  */
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
 
     /* destructure Aggregate Entities  */
-    let { contact, contactSource, contactAcctRel } = contactAggregateEntities;
+    let { contact, contactSource, contactAcctRel, contactOutbox } = contactAggregateEntities;
 
     /* start transaction */
     await queryRunner.startTransaction();
@@ -53,8 +54,8 @@ export class ContactSaveService {
         console.log("NO CONTACT ACCT RELATION")
       } 
       /* save generated events to outbox */
-      if (generatedEvents.length > 0) {
-
+      if (contactOutbox) {
+        contactOutbox = await this.contactOutboxRepository.save(contactAggregateEntities.contactOutbox)
       }
       await queryRunner.commitTransaction();
     } catch (err) {

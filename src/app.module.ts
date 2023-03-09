@@ -10,6 +10,8 @@ import { contactRepositories } from './contact/repos/contact.repositories';
 import { ContactService } from './contact/contact.service';
 import { ContactAggregate } from './contact/aggregate-types/contact.aggregate';
 import { ContactSaveService } from './contact/contact.save.service';
+import { OutboxService } from './outbox/outbox.service';
+import { DomainEventPublisher } from './outbox/domain.event.publisher';
 // import { AggregateService } from './domain-mgt/aggregrate/aggregate.service';
 
 // I assume this is used in the gateway, as it is functioning as the client
@@ -32,7 +34,9 @@ import { ContactSaveService } from './contact/contact.save.service';
       CustomNatsClient,
       ContactAggregate,
       ContactService,
-      ContactSaveService
+      ContactSaveService,
+      OutboxService,
+      DomainEventPublisher
   ],
 })
 export class AppModule {}

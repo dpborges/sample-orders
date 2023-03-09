@@ -33,7 +33,6 @@ export class Contact1676403976245 implements MigrationInterface {
         account_id    integer  NOT NULL,
         first_name    character varying  NOT NULL,
         last_name     character varying,
-        website_url   character varying,
         mobile_phone  character varying,
         create_date timestamp with time zone NOT NULL DEFAULT now(),
         update_date timestamp with time zone NOT NULL DEFAULT now()
