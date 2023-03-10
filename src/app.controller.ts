@@ -1,5 +1,7 @@
+import { EventStatusUpdater } from './outbox/event.status.updater';
+import { OutboxStatus } from './outbox/outbox.status.enum';
 import { OutboxService } from './outbox/outbox.service';
-import { PublishUnpublishedEventsCmdPayload } from './events/outbox/commands';
+import { PublishUnpublishedEventsCmdPayload } from './outbox/events/commands';
 import { NatsJetStreamContext } from '@nestjs-plugins/nestjs-nats-jetstream-transport';
 import { Controller, Get, UseFilters } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
@@ -21,11 +23,12 @@ import { CreateContactDto } from './contact/dtos/create.contact.dto';
 // import { DomainMgtService } from './domain-mgt/domain-mgt.service';
 import { ContactService } from './contact/contact.service';
 import { ContactCommand } from './events/contact/commands';
-import { OutboxCommands } from './events/outbox/commands';
+import { OutboxCommands } from './outbox/events/commands';
 import { CreateContactEvent } from './events/contact/commands';
 import { ContactQueries } from './events/contact/queries';
 import { QueryContactByIdPayload } from './events/contact/queries';
 import { ContactCreatedEvent } from './events/contact/domainChanges';
+import { UpdateEventStatusCmdPayload } from './outbox/events/commands';
 
 
 @UseFilters(new ExceptionFilter())
@@ -34,7 +37,8 @@ export class AppController {
   constructor(
     private readonly appService: AppService,
     private readonly contactService: ContactService,
-    private readonly outboxService:  OutboxService
+    private readonly outboxService:  OutboxService,
+    private readonly eventStatusUpdater: EventStatusUpdater
     ) {}
 
   /* Rest End Point */
@@ -113,33 +117,62 @@ export class AppController {
     console.log(`MS - Received command ${OutboxCommands.publishUnpublishedEvents} on Outbox command handler`);
     console.log('MS - ....with payload', data);
     const cmdResult: any = this.outboxService.publishUnpublishedEvents(data)
-    // console.log("NatsJetStream subject ", subject)
-    // console.log("NatsJetStream headers ", headers)
-    // console.log("NatsJetStream seq ", seq)
-    // console.log("NatsJetStream sid ", sid)
-
+    
     return `Processed command ${OutboxCommands.publishUnpublishedEvents}`;
   }
 
+  @ExecuteCommand(OutboxCommands.updateStatus)
+  async updateOutboxStatus(
+    @Payload() commandPayload: UpdateEventStatusCmdPayload,
+    @Ctx() context: NatsJetStreamContext
+  ): Promise<any> {
+    const subject = context.message.subject;
+    const headers = context.message.headers;
+    console.log(`MS - Received command ${OutboxCommands.updateStatus} on Outbox command handler`);
+    console.log('MS - ....with payload', commandPayload);
+    const cmdResult: any = this.eventStatusUpdater.updateStatus(commandPayload)
+    return `Processed command ${OutboxCommands.updateStatus}`;
+  }
+
   //************************************************************** */
-  // ContactCreated Event Listener
+  // Sample Event Consumer for ContactCreated 
   //************************************************************** */
   // Listens for event published on Nats
   // IMPORTANT: Listeners that are updating downstream data stores should be 
-  // version their entities to ensure CUD events are processed in order
+  // version their entities to ensure CUD events are processed in proper order
   // SEE UDEMY LESSON 42 and refer to link below on Typeorm optimistic concurrency control
   // https://github.com/typeorm/typeorm/issues/3608
   // @EventPattern('order.created')
   @ListenForEvent(Subjects.ContactCreated)
   public async contactCreatedHandler(
-    @Ctx() context: NatsJetStreamContext,
-    @Payload() data: ContactCreatedEvent,
+    @Ctx()  context: NatsJetStreamContext,
+    @Payload() data: ContactCreatedEvent
   ) {
-    /* process message */
-    /* mark outbox entry as completed  */
-    context.message.ack();  /* acknowledge message */
+    const { outboxId } = data.header;
+    const { accountId, email, firstName, lastName } = data.message;
+    
+    /* Update event status to pending via service (request/reply) */
+    await this.appService.updateEventStatus(outboxId, OutboxStatus.pending)
+
+    /* Handle event here  */
+
+    /* Update event status to processed  */
+    await this.appService.updateEventStatus(outboxId, OutboxStatus.processed)
+
+    /* acknowledge message */
+    context.message.ack();  
+    
+    /* update status to published in outbox  */
     console.log(`MS - ContactCreatedEvent Listener received event subject: ${context.message.subject} data: ${data}`);
+
   }
+
+  
+
+  
+  //************************************************************** */
+  // END OF Sample Event Consumer for ContactCreated 
+  //************************************************************** */
 
   //Event Listeners
 

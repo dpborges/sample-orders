@@ -1,3 +1,6 @@
+import { EventStatusUpdater } from './event.status.updater';
+import { UpdateEventStatusCmdPayload } from './events/commands/update.status.payload';
+import { OutboxService } from './outbox.service';
 import { ContactCreatedEvent } from '../events/contact/domainChanges/contact-created-event';
 import { Repository } from 'typeorm';
 import { Injectable, Inject } from '@nestjs/common';
@@ -16,7 +19,9 @@ import { CustomNatsClient } from '../custom.nats.client.service';
 export class DomainEventPublisher {
   
   constructor(
+    // private outboxService: OutboxService,
     private customNatsClient: CustomNatsClient,
+    private eventStatusUpdater: EventStatusUpdater,
     @Inject(RepoToken.CONTACT_OUTBOX_REPOSITORY) private contactOutboxRepository: Repository<ContactOutbox>,
   ) {}
   
@@ -28,13 +33,24 @@ export class DomainEventPublisher {
       console.log("    eventInstance ", eventInstance)
       let subject = eventInstance.subject;
       let payload = eventInstance.payload;
-
+      
+      /* publish event */
       let publishResult = await this.customNatsClient.publishEvent(subject, payload);
-      // console.log(`MS - Acknowledgement from publishing orderCreatedEvent: ${publishResult}`);
+
+      console.log(`MS -publishing orderCreatedEvent: ${publishResult}`);
+
+      /* update event status to published */
+      if (this.isAcknowledged(publishResult)) {
+        const { outboxId } = payload.header;
+        const status = OutboxStatus.published;
+        const cmdPayload: UpdateEventStatusCmdPayload = { outboxId,  status }
+        await this.eventStatusUpdater.updateStatus(cmdPayload)
+      }
     })
-  
     return 'unpublishedEvents';
   }
+  
+  
 
   /* generates the contactCreatedEvent and returns an outbox entity instance
      to the contact service to ultimately save it with the aggregate save transaction   */
@@ -58,16 +74,32 @@ export class DomainEventPublisher {
   /* helper function (used by generateContactCreatedInstances) to create and 
      serialize contactCreatedEvent  */
   generateContactCreatedEvent(createContactEvent): string {
-    const  { accountId, email, firstName, lastName } = createContactEvent.message;
+    /* destructure properties from createDomainEvent to selectively add to DomainCreatedEvent */
+    const { sessionId, userId } = createContactEvent.header;
+    const { accountId, email, firstName, lastName } = createContactEvent.message;
 
-    /* define created event here  */
+    /* use properties from createDomain event to define domainCreatedEvent   */
     const contactCreatedEvent: ContactCreatedEvent = { 
-      accountId, email, firstName, lastName 
+      header:  {sessionId, userId },
+      message: { accountId, email, firstName, lastName }
     }
     /* serialize event  */
     const serializedContactCreatedEvent: string = JSON.stringify(contactCreatedEvent);
 
     return serializedContactCreatedEvent;
+  }
+
+  // *********************************************************
+  // Helpers
+  // *********************************************************
+  
+  /* Checks that the string 'acknowledged' is in the result */
+  isAcknowledged(publishResult): boolean {
+    let acknowledged = true;
+    if (!JSON.stringify(publishResult).includes('acknowledged')) {
+      acknowledged = false;
+    }
+    return acknowledged;
   }
 
 }

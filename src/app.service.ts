@@ -9,7 +9,9 @@ import { Subjects } from './events/contact/domainChanges';
 import { RpcException } from '@nestjs/microservices';
 import { RepoToken } from './db-providers/repo.token.enum';
 import { Contact } from './contact/entities/contact.entity';
-// import { DomainMgtService } from './domain-mgt/domain-mgt.service';
+import { UpdateEventStatusCmdPayload } from './outbox/events/commands';
+import { OutboxCommands } from './outbox/events/commands';
+
 
 @Injectable()
 export class AppService {
@@ -20,43 +22,18 @@ export class AppService {
     @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
   ) {}
 
-  // Database update and publish OrderCreatedEvent 
-  // async createOrder(): Promise<any> {
-  //   // throw new RpcException('ERROR: Unexected exception on Create Order')
-  //   /* Construct OrderCreatedEvent body */
-  //   const orderCreatedEvent: OrderCreatedEvent = {
-  //         id: 1,
-  //         product: 'Socks',
-  //         quantity: 1,
-  //   };
+  /* This method would be on the event consumer. The consumer should update the event status
+     pending when received event and then completed when sucessfully consumed event on server side */
+  async updateEventStatus(outboxId: number, status: string) {
 
-  //   /* Create order and write OrderCreatedEvent to outbox as single transaction */
+    const commandPayload: UpdateEventStatusCmdPayload = { outboxId, status }
+    const commandResult = await this.customNatsClient.sendCommand(
+      OutboxCommands.updateStatus, commandPayload
+    );
+    
+  }
 
-  //   /* Upon successful order created, publish OrderCreatedEvent */
-
-  //   /* emit orderCreatedEvent */ 
-  //   console.log(`MS - Saved new order to database with outbox entry/published=false`);
-  //   // throw new RpcException('Unexected exception on Create Order Service')
-  //   console.log("MS - Emit Created Order Event ")
-  //   let publishResult = await this.customNatsClient.publishEvent(Subjects.OrderCreated, orderCreatedEvent);
-  //   console.log(`MS - Acknowledgement from publishing orderCreatedEvent: ${publishResult}`);
-
-  //   /* If event was succesfully published, update outbox to published = true */ 
-  //   console.log("MS - If received acknowledgement, Update Outbox with published=true ")
-
-  //   // this.client
-  //   //   .emit<OrderCreatedEvent>(Subjects.OrderCreated, {
-  //   //     id: 1,
-  //   //     product: 'Socks',
-  //   //     quantity: 1,
-  //   //   })
-  //   //   .subscribe((pubAck) => {
-  //   //     console.log(">> This is the publish acknowledgement", pubAck);
-  //   //   });
-
-  //   return 'order XYZ created.';
-  // }
-
+  
   // async createContact(): Promise<any> {
   //   // throw new RpcException('ERROR: Unexected exception on Create Order')
   //   /* Construct OrderCreatedEvent body */

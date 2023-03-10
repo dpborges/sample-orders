@@ -15,8 +15,8 @@ import { ServerError } from '../common/errors/server.error';
 import { ClientErrorReasons } from '../common/errors/client.error.standard.text';
 import { ContactCreatedEvent } from '../events/contact/domainChanges';
 import { CustomNatsClient } from 'src/custom.nats.client.service';
-import { OutboxCommands } from '../events/outbox/commands';
-import { PublishUnpublishedEventsCmdPayload } from '../events/outbox/commands'
+import { OutboxCommands } from '../outbox/events/commands';
+import { PublishUnpublishedEventsCmdPayload } from '../outbox/events/commands'
 import { ContactOutbox } from '../outbox/entities/contact.outbox.entity';
 
 @Injectable()
@@ -50,13 +50,13 @@ export class ContactService {
     const aggregate: ContactAggregateEntities = await this.contactAggregate.create(createContactEvent);
     console.log("This is returned contact aggregate ", aggregate);
 
-    /* create outbox instance of contactCreatedEvent to save in the outbox */
+    /* create instance of contactCreatedEvent, from createContactEvent, to save in the outbox */
     let contactOutboxInstance: ContactOutbox =
         await this.outboxService.generateContactCreatedInstances(createContactEvent);
     /* append instance to the aggregate  */
     aggregate.contactOutbox = contactOutboxInstance;
 
-    console.log("    contactOutboxInstance ", contactOutboxInstance);
+    console.log(" contactOutboxInstance ", contactOutboxInstance);
 
     /* Save the aggregate members, the generated event(s) to outbox, and return aggregate root */
     let aggregateRoot: Contact = await this.contactAggregate.idempotentCreate(aggregate, this.generatedEvents);

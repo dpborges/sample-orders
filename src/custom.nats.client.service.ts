@@ -26,7 +26,7 @@ export class CustomNatsClient {
         (err) => {
           console.log(`ERROR FROM SEND COMMAND command:${command} payload:${payload}`);
           console.log(`ERROR ${err}`)
-          console.log("Possible reason is there is no listenter for command")
+          console.log("Possible reason is there is no listener for command")
         }
       );
     })

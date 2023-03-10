@@ -12,6 +12,7 @@ import { ContactAggregate } from './contact/aggregate-types/contact.aggregate';
 import { ContactSaveService } from './contact/contact.save.service';
 import { OutboxService } from './outbox/outbox.service';
 import { DomainEventPublisher } from './outbox/domain.event.publisher';
+import { EventStatusUpdater } from './outbox/event.status.updater';
 // import { AggregateService } from './domain-mgt/aggregrate/aggregate.service';
 
 // I assume this is used in the gateway, as it is functioning as the client
@@ -36,7 +37,8 @@ import { DomainEventPublisher } from './outbox/domain.event.publisher';
       ContactService,
       ContactSaveService,
       OutboxService,
-      DomainEventPublisher
+      DomainEventPublisher,
+      EventStatusUpdater
   ],
 })
 export class AppModule {}

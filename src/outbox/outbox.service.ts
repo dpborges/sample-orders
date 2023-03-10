@@ -1,10 +1,12 @@
+import { UpdateEventStatusCmdPayload } from './events/commands/update.status.payload';
+import { UpdateOutboxStatusCmdPayload } from './../../dist/src/outbox/events/commands/outbox.process_unpublished.payload copy.d';
 import { ContactCreatedEvent } from '../events/contact/domainChanges/contact-created-event';
 import { Repository } from 'typeorm';
 import { Injectable, Inject } from '@nestjs/common';
 import { CreateContactEvent } from '../events/contact/commands/create-contact-event';
 import { ServerError } from '../common/errors/server.error';
 import { ClientErrorReasons } from '../common/errors/client.error.standard.text';
-import { PublishUnpublishedEventsCmdPayload } from '../events/outbox/commands';
+import { PublishUnpublishedEventsCmdPayload } from './events/commands';
 import { RepoToken } from '../db-providers/repo.token.enum';
 import { ContactOutbox } from './entities/contact.outbox.entity';
 import { OutboxStatus } from './outbox.status.enum';
@@ -15,11 +17,6 @@ import { SubjectAndPayload } from './types/subject.and.payload';
 @Injectable()
 export class OutboxService {
   
-  // private generatedEvents: Array<ContactCreatedEvent> = [];
-
-  /* Create Dto */
-  // private createContactDto: CreateContactDto;
-
   constructor(
     // private contactAggregate: ContactAggregate,
     // private customNatsClient: CustomNatsClient
@@ -27,33 +24,40 @@ export class OutboxService {
     @Inject(RepoToken.CONTACT_OUTBOX_REPOSITORY) private contactOutboxRepository: Repository<ContactOutbox>,
   ) {}
   
-  // async getAggregate<T>(id: number){
-  //   return this.contactAggregate.findById(id);
-  // }
 
   // publish unpublished events in outbox for a given account
   async publishUnpublishedEvents(payload: PublishUnpublishedEventsCmdPayload): Promise<any[]> {
     console.log(">>>> Inside publishUnpublishedEvents method");
 
-    /* find unpublished events in outbox fora  given accountId */
+    /* find unpublished events in outbox for a  given accountId */
     const outboxInstances: Array<ContactOutbox> = 
       await this.contactOutboxRepository.find({
         where: { accountId: payload.accountId }
       });
-    
+    console.log(" =============================")
+    console.log(" instances stored in outbox ", outboxInstances)
+    console.log(" =============================")
     /* init unpublished events array */
     let unpublishedEvents: Array<SubjectAndPayload> = [];
 
-    /* constructed subject and payload object and save in array of unpublished events */
+    /* construct subject and payload object and save in array of unpublished events */
     outboxInstances.forEach((outboxInstance) => {
-      let subject = outboxInstance.subject;
-      let payload: ContactCreatedEvent = JSON.parse(outboxInstance.payload)
-      let subjectAndPayload: SubjectAndPayload = { subject, payload }
-      
-      unpublishedEvents = unpublishedEvents.concat(subjectAndPayload)
+        /* pull out subject and payload from outbox instance */
+        let subject = outboxInstance.subject;
+        let payload: ContactCreatedEvent = JSON.parse(outboxInstance.payload);
+
+        /* add the outbox instance Id (outboxId) to the header */
+        let {  header, message } = payload;
+        header.outboxId = outboxInstance.id;
+        payload = { header: {...header}, message: {...message} }
+
+        /* construct a  subject/payload pair to same in the outbox */
+        let subjectAndPayload: SubjectAndPayload = { subject, payload }
+        
+        unpublishedEvents = unpublishedEvents.concat(subjectAndPayload)
     })
-    this.domainEventPublisher.publishEvents(unpublishedEvents)
     console.log("    Unpublished events array ", unpublishedEvents)
+    await this.domainEventPublisher.publishEvents(unpublishedEvents)
     return unpublishedEvents;
   }
 
@@ -66,6 +70,7 @@ export class OutboxService {
     const { accountId } = createContactEvent.message;
 
     const serializedContactCreatedEvent = this.generateContactCreatedEvent(createContactEvent);
+
     const contactCreatedEventOutboxInstance:ContactOutbox = this.contactOutboxRepository.create({
       accountId, 
       subject: Subjects.ContactCreated,
@@ -73,22 +78,27 @@ export class OutboxService {
       userId,
       status: OutboxStatus.unpublished
    });
+      
    return contactCreatedEventOutboxInstance
   }
 
   /* helper function (used by generateContactCreatedInstances) to create and 
      serialize contactCreatedEvent  */
   generateContactCreatedEvent(createContactEvent): string {
+    /* destructure properties for create contact event */
     const  { accountId, email, firstName, lastName } = createContactEvent.message;
+    const  { sessionId, userId } = createContactEvent.header;
 
-    /* define created event here  */
+    /* use destructured properties to define what to include in contactCreatedEvent  */
     const contactCreatedEvent: ContactCreatedEvent = { 
-      accountId, email, firstName, lastName 
+      header:  { sessionId, userId },
+      message: { accountId, email, firstName, lastName  }
     }
     /* serialize event  */
     const serializedContactCreatedEvent: string = JSON.stringify(contactCreatedEvent);
 
     return serializedContactCreatedEvent;
   }
+
 
 }
