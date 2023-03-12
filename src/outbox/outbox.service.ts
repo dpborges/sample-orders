@@ -11,7 +11,7 @@ import { RepoToken } from '../db-providers/repo.token.enum';
 import { ContactOutbox } from './entities/contact.outbox.entity';
 import { OutboxStatus } from './outbox.status.enum';
 import { Subjects } from '../events/contact/domainChanges';
-import { DomainEventPublisher } from './domain.event.publisher';
+import { DomainChangeEventPublisher } from './domainchange.event.publisher';
 import { SubjectAndPayload } from './types/subject.and.payload';
 
 @Injectable()
@@ -20,12 +20,19 @@ export class OutboxService {
   constructor(
     // private contactAggregate: ContactAggregate,
     // private customNatsClient: CustomNatsClient
-    private domainEventPublisher: DomainEventPublisher,
+    private domainChangeEventPublisher: DomainChangeEventPublisher,
     @Inject(RepoToken.CONTACT_OUTBOX_REPOSITORY) private contactOutboxRepository: Repository<ContactOutbox>,
   ) {}
   
 
-  // publish unpublished events in outbox for a given account
+  /**
+   * Retrieves list of unpublished events for a given accountId from the outbox and creates an array
+   * of { subject, payload } instances, and passes array to publishEvents method of
+   * domainChangeEventPublisher
+   * Payload carries the accountId and method returns an array of unpublished events.
+   * @param payload 
+   * @returns unpublishedEvents
+   */
   async publishUnpublishedEvents(payload: PublishUnpublishedEventsCmdPayload): Promise<any[]> {
     console.log(">>>> Inside publishUnpublishedEvents method");
 
@@ -56,8 +63,10 @@ export class OutboxService {
         
         unpublishedEvents = unpublishedEvents.concat(subjectAndPayload)
     })
+
     console.log("    Unpublished events array ", unpublishedEvents)
-    await this.domainEventPublisher.publishEvents(unpublishedEvents)
+    await this.domainChangeEventPublisher.publishEvents(unpublishedEvents)
+
     return unpublishedEvents;
   }
 

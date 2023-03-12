@@ -155,12 +155,15 @@ export class AppController {
     await this.appService.updateEventStatus(outboxId, OutboxStatus.pending)
 
     /* Handle event here  */
+    const successfullyProcessed = () => true;
 
-    /* Update event status to processed  */
-    await this.appService.updateEventStatus(outboxId, OutboxStatus.processed)
+    if (successfullyProcessed) {
+      /* Update event status to processed  */
+      await this.appService.updateEventStatus(outboxId, OutboxStatus.processed)
 
-    /* acknowledge message */
-    context.message.ack();  
+      /* acknowledge message */
+      context.message.ack();  
+    }
     
     /* update status to published in outbox  */
     console.log(`MS - ContactCreatedEvent Listener received event subject: ${context.message.subject} data: ${data}`);

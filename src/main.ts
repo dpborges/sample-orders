@@ -11,10 +11,12 @@ import { NatsJetStreamServer } from '@nestjs-plugins/nestjs-nats-jetstream-trans
 // ----------------------------------------------------------------------
 // Consumer Options
 // ----------------------------------------------------------------------
-// deliverGroup: this analogous to a queue group in Core Nats. The queue group
-//               used to distribute the messages between the subscribers to the consumer
+// deliverGroup: this analogous to a queue group in Core Nats. The queue group is
+//               used to distribute messages to one of the members in a queue group.
+//               It simulates a round robin distribution, which enables you to 
+//               horizontally scale.
 // durable: a consumer is considered durable when an explicit name is set for this field.
-//          Durables with remain even with periods of inactivity unless the 
+//          Durables will remain even with periods of inactivity unless the 
 //          InactiveThreshold is set explicity.  
 // deliverTo: not sure what its used for. IN documenation its typically left empty.          
 // manualAck: The default is auto-acknowledgement for most clients, but manual

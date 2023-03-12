@@ -15,8 +15,9 @@ import { Subjects } from '../events/contact/domainChanges';
 import { SubjectAndPayload } from './types/subject.and.payload';
 import { CustomNatsClient } from '../custom.nats.client.service';
 
+
 @Injectable()
-export class DomainEventPublisher {
+export class DomainChangeEventPublisher {
   
   constructor(
     // private outboxService: OutboxService,
@@ -25,35 +26,42 @@ export class DomainEventPublisher {
     @Inject(RepoToken.CONTACT_OUTBOX_REPOSITORY) private contactOutboxRepository: Repository<ContactOutbox>,
   ) {}
   
-  // publish unpublished events and change status flag to 'published' in outbox
-  async publishEvents<ContactCreatedEvent>(eventInstances: Array<SubjectAndPayload>): Promise<any> {
+  /**
+   * Publishes array of event instances { subject, payload } to messaging platform.
+   * @param eventInstances 
+   * @returns 
+   */
+  async publishEvents<ContactCreatedEvent>(eventInstances: Array<SubjectAndPayload>): Promise<void> {
     console.log(">>>> Inside publishEvents method");
 
     eventInstances.forEach(async (eventInstance) => {
       console.log("    eventInstance ", eventInstance)
       let subject = eventInstance.subject;
       let payload = eventInstance.payload;
+      const { outboxId } = payload.header;
       
       /* publish event */
-      let publishResult = await this.customNatsClient.publishEvent(subject, payload);
+      let natsResult = await this.customNatsClient.publishEvent(subject, payload);
 
-      console.log(`MS -publishing orderCreatedEvent: ${publishResult}`);
-
+      console.log(`MS -publishing orderCreatedEvent: ${natsResult}`);
+      
       /* update event status to published */
-      if (this.isAcknowledged(publishResult)) {
-        const { outboxId } = payload.header;
+      if (this.isAcknowledged(natsResult)) {
         const status = OutboxStatus.published;
         const cmdPayload: UpdateEventStatusCmdPayload = { outboxId,  status }
         await this.eventStatusUpdater.updateStatus(cmdPayload)
+      } else {
+        console.log(`WARNING: Nats did not send back acknowledgement when publishing event - outboxId: ${outboxId}`)
       }
     })
-    return 'unpublishedEvents';
   }
   
   
-
-  /* generates the contactCreatedEvent and returns an outbox entity instance
-     to the contact service to ultimately save it with the aggregate save transaction   */
+ /**
+  * Create outbox instance for contactCreatedEvent 
+  * @param createContactEvent 
+  * @returns contactCreatedEventOutboxInstance
+  */
   generateContactCreatedInstances(createContactEvent: CreateContactEvent): ContactOutbox {
     console.log(">>> Inside OutboxService.generateDomainCreatedInstances ")
     // console.log("    contactCreatedEvent ",  createContactEvent);
@@ -71,8 +79,11 @@ export class DomainEventPublisher {
    return contactCreatedEventOutboxInstance
   }
 
-  /* helper function (used by generateContactCreatedInstances) to create and 
-     serialize contactCreatedEvent  */
+  /**
+   * Maps createContactEvent to createdContactEvent
+   * @param createContactEvent 
+   * @returns serializedContactCreatedEvent
+   */
   generateContactCreatedEvent(createContactEvent): string {
     /* destructure properties from createDomainEvent to selectively add to DomainCreatedEvent */
     const { sessionId, userId } = createContactEvent.header;
@@ -93,10 +104,10 @@ export class DomainEventPublisher {
   // Helpers
   // *********************************************************
   
-  /* Checks that the string 'acknowledged' is in the result */
-  isAcknowledged(publishResult): boolean {
+  // Checks that the string 'acknowledged' is in the result when you publishe an event 
+  isAcknowledged(natsResult): boolean {
     let acknowledged = true;
-    if (!JSON.stringify(publishResult).includes('acknowledged')) {
+    if (!JSON.stringify(natsResult).includes('acknowledged')) {
       acknowledged = false;
     }
     return acknowledged;

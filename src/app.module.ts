@@ -11,7 +11,7 @@ import { ContactService } from './contact/contact.service';
 import { ContactAggregate } from './contact/aggregate-types/contact.aggregate';
 import { ContactSaveService } from './contact/contact.save.service';
 import { OutboxService } from './outbox/outbox.service';
-import { DomainEventPublisher } from './outbox/domain.event.publisher';
+import { DomainChangeEventPublisher } from './outbox/domainchange.event.publisher';
 import { EventStatusUpdater } from './outbox/event.status.updater';
 // import { AggregateService } from './domain-mgt/aggregrate/aggregate.service';
 
@@ -37,7 +37,7 @@ import { EventStatusUpdater } from './outbox/event.status.updater';
       ContactService,
       ContactSaveService,
       OutboxService,
-      DomainEventPublisher,
+      DomainChangeEventPublisher,
       EventStatusUpdater
   ],
 })
