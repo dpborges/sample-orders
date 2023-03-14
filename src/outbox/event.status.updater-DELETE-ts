@@ -23,14 +23,14 @@ export class EventStatusUpdater {
     @Inject(RepoToken.CONTACT_OUTBOX_REPOSITORY) private contactOutboxRepository: Repository<ContactOutbox>,
   ) {}
   
-  async updateStatus(updateEventStatusCmdPayload: UpdateEventStatusCmdPayload): Promise<void> {
-    let { outboxId, status } = updateEventStatusCmdPayload;
+  // async updateStatus(updateEventStatusCmdPayload: UpdateEventStatusCmdPayload): Promise<void> {
+  //   let { outboxId, status } = updateEventStatusCmdPayload;
     
-    /* set status where id = outboxId */
-    const { affected: rowsUpdated } = await this.contactOutboxRepository.update(outboxId, { status });
-    if (rowsUpdated !== 1) {
-      //LOG WARNING
-      console.log(`WARNING: Expected 1 rowUpdated but received ${rowsUpdated} when changing status for outboxId:${outboxId} `)
-    }
-  }
+  //   /* set status where id = outboxId */
+  //   const { affected: rowsUpdated } = await this.contactOutboxRepository.update(outboxId, { status });
+  //   if (rowsUpdated !== 1) {
+  //     //LOG WARNING
+  //     console.log(`WARNING: Expected 1 rowUpdated but received ${rowsUpdated} when changing status for outboxId:${outboxId} `)
+  //   }
+  // }
 }

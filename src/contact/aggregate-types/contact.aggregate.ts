@@ -25,6 +25,7 @@ export class ContactAggregate extends AggregateRoot {
     private contactSaveService: ContactSaveService,
     @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
     @Inject(RepoToken.CONTACT_SOURCE_REPOSITORY) private contactSourceRepository: Repository<ContactSource>,
+    @Inject(RepoToken.CONTACT_ACCT_REL_REPOSITORY) private contactAcctRelRepository: Repository<ContactAcctRel>,
     @Inject(RepoToken.DATA_SOURCE) private dataSource: DataSource
   ) {super()};
 
@@ -46,8 +47,14 @@ export class ContactAggregate extends AggregateRoot {
       accountId, email, firstName, lastName,  mobilePhone
     });
     
-    /* create contact source and set the aggregate property */
+    /* create contact source relation and set the aggregate property */
     this.aggregate.contactSource = this.contactSourceRepository.create({type, name});
+
+    /* create instance of contact account relation; defer assigining actual contactId till save contact  */
+    const placeholderContactId: number = -1;
+    this.aggregate.contactAcctRel = this.contactAcctRelRepository.create({
+      accountId, contactId:  placeholderContactId
+    });
 
     /* assign default version to new contact aggregate */
     this.aggregate.contact.version = this.getInitialVersion();  // append version from aggregate root
@@ -65,6 +72,23 @@ export class ContactAggregate extends AggregateRoot {
       .getOne()
     return contact;
   };
+
+
+  // https://www.postgresql.org/docs/current/queries-table-expressions.html
+  async loadAggregate() {
+    const contact = await this.dataSource.query(
+      `select * from contact 
+         INNER JOIN contact_source ON contact.id = contact_source.contact_id
+         where contact.id = 15;`
+    );
+    console.log("SELECTED CONTACT ", contact)
+  }
+
+  // TBD
+  loadAggregateRoot() {}
+  // TBD
+  loadPartialAggregate() {}
+ 
 
   applyChanges() {};
 

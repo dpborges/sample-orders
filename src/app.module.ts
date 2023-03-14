@@ -6,20 +6,22 @@ import { NatsJetStreamTransport } from '@nestjs-plugins/nestjs-nats-jetstream-tr
 import { NatsJetStreamClient } from '@nestjs-plugins/nestjs-nats-jetstream-transport';
 import { CustomNatsClient } from './custom.nats.client.service';
 import { contactRepositories } from './contact/repos/contact.repositories';
-// import { DomainMgtService } from './domain-mgt/domain-mgt.service';
 import { ContactService } from './contact/contact.service';
 import { ContactAggregate } from './contact/aggregate-types/contact.aggregate';
 import { ContactSaveService } from './contact/contact.save.service';
 import { OutboxService } from './outbox/outbox.service';
 import { DomainChangeEventPublisher } from './outbox/domainchange.event.publisher';
-import { EventStatusUpdater } from './outbox/event.status.updater';
-// import { AggregateService } from './domain-mgt/aggregrate/aggregate.service';
+import { ConfigModule } from '@nestjs/config';
+import { DomainChangeEventFactory } from './contact/domain.change.event.factory';
+import { DomainChangeEventManager } from './outbox/domainchange.event.manager';
 
-// I assume this is used in the gateway, as it is functioning as the client
 
 @Module({
   imports: [
     DatabaseModule,
+    ConfigModule.forRoot({
+      envFilePath: `.env.${process.env.NODE_ENV}`
+    }),
     NatsJetStreamTransport.register({
       connectionOptions: {
         servers: 'localhost:4222',
@@ -37,8 +39,9 @@ import { EventStatusUpdater } from './outbox/event.status.updater';
       ContactService,
       ContactSaveService,
       OutboxService,
+      DomainChangeEventFactory,
       DomainChangeEventPublisher,
-      EventStatusUpdater
+      DomainChangeEventManager,
   ],
 })
 export class AppModule {}

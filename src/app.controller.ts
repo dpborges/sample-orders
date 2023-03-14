@@ -1,4 +1,4 @@
-import { EventStatusUpdater } from './outbox/event.status.updater';
+// import { EventStatusUpdater } from './outbox/event.status.updater';
 import { OutboxStatus } from './outbox/outbox.status.enum';
 import { OutboxService } from './outbox/outbox.service';
 import { PublishUnpublishedEventsCmdPayload } from './outbox/events/commands';
@@ -29,6 +29,8 @@ import { ContactQueries } from './events/contact/queries';
 import { QueryContactByIdPayload } from './events/contact/queries';
 import { ContactCreatedEvent } from './events/contact/domainChanges';
 import { UpdateEventStatusCmdPayload } from './outbox/events/commands';
+import { DomainChangeEventManager } from './outbox/domainchange.event.manager';
+import { ContactAggregate } from './contact/aggregate-types/contact.aggregate';
 
 
 @UseFilters(new ExceptionFilter())
@@ -38,14 +40,23 @@ export class AppController {
     private readonly appService: AppService,
     private readonly contactService: ContactService,
     private readonly outboxService:  OutboxService,
-    private readonly eventStatusUpdater: EventStatusUpdater
+    private readonly contactAggregate: ContactAggregate,
+    // private readonly eventStatusUpdater: EventStatusUpdater,
+    private readonly domainChangeEventManager: DomainChangeEventManager
     ) {}
 
   /* Rest End Point */
   @Get()
   home(): string {
-    return 'Welcome to webshop';
+    return `Welcome to webshop`;
   }
+
+  @Get('load')
+  loadAggregate(): any {
+    console.log("Controller: Load aggregate");
+    this.contactAggregate.loadAggregate()
+  }
+
 
   //************************************************************** */
   // Contact Query Handlers
@@ -130,7 +141,7 @@ export class AppController {
     const headers = context.message.headers;
     console.log(`MS - Received command ${OutboxCommands.updateStatus} on Outbox command handler`);
     console.log('MS - ....with payload', commandPayload);
-    const cmdResult: any = this.eventStatusUpdater.updateStatus(commandPayload)
+    const cmdResult: any = this.domainChangeEventManager.updateStatus(commandPayload)
     return `Processed command ${OutboxCommands.updateStatus}`;
   }
 

@@ -16,7 +16,7 @@ import { SubjectAndPayload } from './types/subject.and.payload';
 
 @Injectable()
 export class OutboxService {
-  
+
   constructor(
     // private contactAggregate: ContactAggregate,
     // private customNatsClient: CustomNatsClient
@@ -24,7 +24,6 @@ export class OutboxService {
     @Inject(RepoToken.CONTACT_OUTBOX_REPOSITORY) private contactOutboxRepository: Repository<ContactOutbox>,
   ) {}
   
-
   /**
    * Retrieves list of unpublished events for a given accountId from the outbox and creates an array
    * of { subject, payload } instances, and passes array to publishEvents method of
@@ -72,18 +71,19 @@ export class OutboxService {
 
   /* generates the contactCreatedEvent and returns an outbox entity instance
      to the contact service to ultimately save it with the aggregate save transaction   */
-  generateContactCreatedInstances(createContactEvent: CreateContactEvent): ContactOutbox {
+  generateContactCreatedInstances(
+      createContactEvent: CreateContactEvent,
+      serializedEventPayload:  string
+    ): ContactOutbox {
     console.log(">>> Inside OutboxService.generateDomainCreatedInstances ")
     // console.log("    contactCreatedEvent ",  createContactEvent);
     const { userId }    = createContactEvent.header;
     const { accountId } = createContactEvent.message;
 
-    const serializedContactCreatedEvent = this.generateContactCreatedEvent(createContactEvent);
-
     const contactCreatedEventOutboxInstance:ContactOutbox = this.contactOutboxRepository.create({
       accountId, 
       subject: Subjects.ContactCreated,
-      payload: serializedContactCreatedEvent,
+      payload: serializedEventPayload,
       userId,
       status: OutboxStatus.unpublished
    });
@@ -93,21 +93,21 @@ export class OutboxService {
 
   /* helper function (used by generateContactCreatedInstances) to create and 
      serialize contactCreatedEvent  */
-  generateContactCreatedEvent(createContactEvent): string {
-    /* destructure properties for create contact event */
-    const  { accountId, email, firstName, lastName } = createContactEvent.message;
-    const  { sessionId, userId } = createContactEvent.header;
+  // generateContactCreatedEvent(createContactEvent): string {
+  //   /* destructure properties for create contact event */
+  //   const  { accountId, email, firstName, lastName } = createContactEvent.message;
+  //   const  { sessionId, userId } = createContactEvent.header;
 
-    /* use destructured properties to define what to include in contactCreatedEvent  */
-    const contactCreatedEvent: ContactCreatedEvent = { 
-      header:  { sessionId, userId },
-      message: { accountId, email, firstName, lastName  }
-    }
-    /* serialize event  */
-    const serializedContactCreatedEvent: string = JSON.stringify(contactCreatedEvent);
+  //   /* use destructured properties to define what to include in contactCreatedEvent  */
+  //   const contactCreatedEvent: ContactCreatedEvent = { 
+  //     header:  { sessionId, userId },
+  //     message: { accountId, email, firstName, lastName  }
+  //   }
+  //   /* serialize event  */
+  //   const serializedContactCreatedEvent: string = JSON.stringify(contactCreatedEvent);
 
-    return serializedContactCreatedEvent;
-  }
+  //   return serializedContactCreatedEvent;
+  // }
 
 
 }

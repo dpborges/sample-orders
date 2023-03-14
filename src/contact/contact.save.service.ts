@@ -20,6 +20,7 @@ export class ContactSaveService {
     @Inject(RepoToken.DATA_SOURCE) private dataSource: DataSource,
     @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
     @Inject(RepoToken.CONTACT_SOURCE_REPOSITORY) private contactSourceRepository: Repository<ContactSource>,
+    @Inject(RepoToken.CONTACT_ACCT_REL_REPOSITORY) private contactAcctRelRepository: Repository<ContactAcctRel>,
     @Inject(RepoToken.CONTACT_OUTBOX_REPOSITORY) private contactOutboxRepository: Repository<ContactOutbox>
   ) {}
   
@@ -50,8 +51,10 @@ export class ContactSaveService {
         /* save contactSource */
         const savedContactSource: ContactSource = await this.contactSourceRepository.save(contactAggregateEntities.contactSource)
       }
-      if (!contactAcctRel) {
-        console.log("NO CONTACT ACCT RELATION")
+      if (contactAcctRel) {
+        /* create contact -> account relationship, where one contact may exist in multiple accounts */
+        contactAcctRel.contactId = contact.id;
+        const savedContactAcctRel: ContactAcctRel = await this.contactAcctRelRepository.save(contactAggregateEntities.contactAcctRel)
       } 
       /* save generated events to outbox */
       if (contactOutbox) {

@@ -1,4 +1,3 @@
-import { EventStatusUpdater } from './event.status.updater';
 import { UpdateEventStatusCmdPayload } from './events/commands/update.status.payload';
 import { OutboxService } from './outbox.service';
 import { ContactCreatedEvent } from '../events/contact/domainChanges/contact-created-event';
@@ -14,6 +13,8 @@ import { OutboxStatus } from './outbox.status.enum';
 import { Subjects } from '../events/contact/domainChanges';
 import { SubjectAndPayload } from './types/subject.and.payload';
 import { CustomNatsClient } from '../custom.nats.client.service';
+// import { EventStatusUpdater } from './event.status.updater';
+import { DomainChangeEventManager } from './domainchange.event.manager';
 
 
 @Injectable()
@@ -22,16 +23,19 @@ export class DomainChangeEventPublisher {
   constructor(
     // private outboxService: OutboxService,
     private customNatsClient: CustomNatsClient,
-    private eventStatusUpdater: EventStatusUpdater,
+    // private eventStatusUpdater: EventStatusUpdater,
+    private domainChangeEventManager: DomainChangeEventManager,
     @Inject(RepoToken.CONTACT_OUTBOX_REPOSITORY) private contactOutboxRepository: Repository<ContactOutbox>,
   ) {}
   
   /**
    * Publishes array of event instances { subject, payload } to messaging platform.
+   * This method is Event Type agnostic. It simply loads the subject and payload from 
+   * the outbox table, and publishes those events.
    * @param eventInstances 
    * @returns 
    */
-  async publishEvents<ContactCreatedEvent>(eventInstances: Array<SubjectAndPayload>): Promise<void> {
+  async publishEvents(eventInstances: Array<SubjectAndPayload>): Promise<void> {
     console.log(">>>> Inside publishEvents method");
 
     eventInstances.forEach(async (eventInstance) => {
@@ -49,7 +53,7 @@ export class DomainChangeEventPublisher {
       if (this.isAcknowledged(natsResult)) {
         const status = OutboxStatus.published;
         const cmdPayload: UpdateEventStatusCmdPayload = { outboxId,  status }
-        await this.eventStatusUpdater.updateStatus(cmdPayload)
+        await this.domainChangeEventManager.updateStatus(cmdPayload)
       } else {
         console.log(`WARNING: Nats did not send back acknowledgement when publishing event - outboxId: ${outboxId}`)
       }
@@ -62,22 +66,22 @@ export class DomainChangeEventPublisher {
   * @param createContactEvent 
   * @returns contactCreatedEventOutboxInstance
   */
-  generateContactCreatedInstances(createContactEvent: CreateContactEvent): ContactOutbox {
-    console.log(">>> Inside OutboxService.generateDomainCreatedInstances ")
-    // console.log("    contactCreatedEvent ",  createContactEvent);
-    const { userId }    = createContactEvent.header;
-    const { accountId } = createContactEvent.message;
+  // generateContactCreatedInstances(createContactEvent: CreateContactEvent): ContactOutbox {
+  //   console.log(">>> Inside OutboxService.generateDomainCreatedInstances ")
+  //   // console.log("    contactCreatedEvent ",  createContactEvent);
+  //   const { userId }    = createContactEvent.header;
+  //   const { accountId } = createContactEvent.message;
 
-    const serializedContactCreatedEvent = this.generateContactCreatedEvent(createContactEvent);
-    const contactCreatedEventOutboxInstance:ContactOutbox = this.contactOutboxRepository.create({
-      accountId, 
-      subject: Subjects.ContactCreated,
-      payload: serializedContactCreatedEvent,
-      userId,
-      status: OutboxStatus.unpublished
-   });
-   return contactCreatedEventOutboxInstance
-  }
+  //   const serializedContactCreatedEvent = this.generateContactCreatedEvent(createContactEvent);
+  //   const contactCreatedEventOutboxInstance:ContactOutbox = this.contactOutboxRepository.create({
+  //     accountId, 
+  //     subject: Subjects.ContactCreated,
+  //     payload: serializedContactCreatedEvent,
+  //     userId,
+  //     status: OutboxStatus.unpublished
+  //  });
+  //  return contactCreatedEventOutboxInstance
+  // }
 
   /**
    * Maps createContactEvent to createdContactEvent

@@ -11,7 +11,12 @@ import {
   JoinTable
 } from 'typeorm'; 
 
-/* Creates primary key on id and an index on email and an index on accountId */
+/**
+ * Tracks which accounts the contact is in.
+ * Note that an contact can exist in multiple accounts. Rather than creating the contact
+ * for each account, we create contact once and keep track of accounts there exist 
+ * in within this table.
+ */
 @Entity()
 export class ContactAcctRel {
  
