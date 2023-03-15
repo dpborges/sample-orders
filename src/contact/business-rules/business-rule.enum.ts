@@ -1,4 +1,4 @@
 export enum BusinessRule {
-  contactExistCheck     = "contactExistCheck",
+  contactExistInAcctCheck     = "contactExistInAcctCheck",
   updateContactXyzRule  = "updateContactXyzRule"
 }

@@ -57,7 +57,7 @@ export class ContactService {
     console.log("This is returned contact aggregate ", aggregate);
 
     /* handle requirement for publishing Created event  */
-    this.handleDomainCreatedEvent(createContactEvent, aggregate);
+    this.prepareDomainCreatedEvent(createContactEvent, aggregate);
 
     /* Save the aggregate members, the generated event(s) to outbox, and return aggregate root */
     let aggregateRoot: Contact = await this.contactAggregate.idempotentCreate(aggregate, this.generatedEvents);
@@ -77,11 +77,12 @@ export class ContactService {
   }
 
   /**
-   * 
+   * Prepares the event and the outbox instance to publish a domain created event.
+   * Note that the domainChangeEventsEnabled flag must be set.
    * @param createContactEvent 
    * @param aggregate 
    */
-  async handleDomainCreatedEvent(
+  async prepareDomainCreatedEvent(
       createContactEvent: CreateContactEvent, 
       aggregate: ContactAggregateEntities) 
   {

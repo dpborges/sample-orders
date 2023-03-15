@@ -52,9 +52,9 @@ export class AppController {
   }
 
   @Get('load')
-  loadAggregate(): any {
-    console.log("Controller: Load aggregate");
-    this.contactAggregate.loadAggregate()
+  loadAggregateById(): any {
+    const contactId = 18;
+    this.contactAggregate.loadAggregateById(contactId)
   }
 
 

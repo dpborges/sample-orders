@@ -74,12 +74,6 @@ export class ContactSaveService {
     return contact;
   };
 
-  
-
-  async saveEventToOutbox(contactCreatedEvent: ContactCreatedEvent) {
-
-  }
-  
 
   // **************************************************************
   // Helpers
