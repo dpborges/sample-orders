@@ -11,7 +11,10 @@ import {
   JoinTable
 } from 'typeorm'; 
 
-/* Creates primary key on id and an index on email and an index on accountId */
+/* Note, accountId was removed from contact enity and added to contact_acct_rel 
+   table. By doing so, we can track if contact exists in more than one account without
+   duplicating the account record. The contact and contact_acct_rel table should 
+   always be join to see which account the contact belongs to. */
 @Entity()
 export class Contact {
  
@@ -25,9 +28,9 @@ export class Contact {
   @Column()
   email: string;
    
-  @Index()
-  @Column()
-  accountId: number;
+  // @Index()
+  // @Column()
+  // accountId: number;
 
   @Column()  
   firstName: string;

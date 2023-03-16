@@ -1,5 +1,4 @@
 import { UpdateEventStatusCmdPayload } from './events/commands/update.status.payload';
-import { UpdateOutboxStatusCmdPayload } from './../../dist/src/outbox/events/commands/outbox.process_unpublished.payload copy.d';
 import { ContactCreatedEvent } from '../events/contact/domainChanges/contact-created-event';
 import { Repository } from 'typeorm';
 import { Injectable, Inject } from '@nestjs/common';

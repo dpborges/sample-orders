@@ -30,7 +30,6 @@ export class Contact1676403976245 implements MigrationInterface {
         id            SERIAL PRIMARY KEY,
         version       integer NOT NULL,
         email         character varying NOT NULL,
-        account_id    integer  NOT NULL,
         first_name    character varying  NOT NULL,
         last_name     character varying,
         mobile_phone  character varying,
@@ -42,10 +41,6 @@ export class Contact1676403976245 implements MigrationInterface {
       CREATE UNIQUE INDEX "idx_email"
         ON ${TABLE_NAME} USING btree
         (email ASC)
-        TABLESPACE pg_default;
-      CREATE UNIQUE INDEX "idx_account_id"
-        ON ${TABLE_NAME} USING btree
-        (account_id ASC)
         TABLESPACE pg_default;
     `);
   }

@@ -40,8 +40,23 @@ export class ContactService {
     }
   }
   
-  async getAggregate<T>(id: number) {
-    return this.contactAggregate.findById(id);
+  async updateById(id: number) {
+    const updateRequest = { id, mobilePhone: 9173334444 };
+
+    // determine entity(ies) being updated
+    const contactAggregateEntities = await this.contactAggregate.getAggregateEntitiesById(id);
+
+    const updatedAggregateEntities = this.contactAggregate.updateById(id, updateRequest)
+    // get aggregate
+    // let contactAggregate = await this.contactAggregate.getAggregateEntitiesById(id);
+
+    // apply change
+
+  }
+ 
+
+  async getAggregateEntitiesById(id: number): Promise<ContactAggregateEntities> {
+    return await this.contactAggregate.getAggregateEntitiesById(id);
   }
 
   // service used to create aggreate, then save it.
@@ -102,4 +117,9 @@ export class ContactService {
     /* append instance to the aggregate  */
     aggregate.contactOutbox = contactOutboxInstance;
   }
+
+  // *****************************************************************
+  // Helper methods
+  // *****************************************************************
+
 }

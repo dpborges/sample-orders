@@ -17,10 +17,10 @@ export class ContactSource {
   accountId: string;
 
   @Column()  
-  type: string;  // holds source type,  such as 'Application' or 'Form'
+  sourceType: string;  // holds source type,  such as 'Application' or 'Form'
 
   @Column()  
-  name: string;  // holds source name,  such as 'pivitee' or 'XYZ Subscription Form'
+  sourceName: string;  // holds source name,  such as 'pivitee' or 'XYZ Subscription Form'
 
   @Column()
   contactId: number;

@@ -15,12 +15,13 @@ import { BusinessRule } from '../business-rules/business-rule.enum';
 import { CreateContactEvent } from 'src/events/contact/commands';
 import { ContactCreatedEvent } from 'src/events/contact/domainChanges';
 
-// class used to construct aggregate object with related entities from event payload/
-// This class also has creational business rules and/or update business rules
+// Class used to construct aggregate object with related entities from event payload/
+// This class also centralizes aggregate business rules in this one class.
 @Injectable()
 export class ContactAggregate extends AggregateRoot {
 
   private events: Array<ContactCreatedEvent> = [];
+  private numberOfAggregateEntities = 3;  // used for applying updates
 
   constructor(
     private contactSaveService: ContactSaveService,
@@ -30,32 +31,35 @@ export class ContactAggregate extends AggregateRoot {
     @Inject(RepoToken.DATA_SOURCE) private dataSource: DataSource
   ) {super()};
 
+  // Define mandatory entities only below and omit optional entities as they will 
+  // be added dynamically upon update.
   aggregate: ContactAggregateEntities = {
      contact: null,
-     contactSource: null,
      contactAcctRel: null
   }
  
-  /* Constructs aggregate from parts from the create <domain> event object.  */
+  /* Constructs aggregate from parts from the create <domain> event object. If properties for
+     optional relations are not provided, do not add to aggregateEntities object.  */
   async create(createContactEvent: CreateContactEvent): Promise<ContactAggregateEntities> {
     /* destructure Dto to extract aggregate entities */
     const { email, accountId, firstName, lastName, mobilePhone } = createContactEvent.message;
-    const { sourceType: type, sourceName: name } = createContactEvent.message;
+    const { sourceType, sourceName } = createContactEvent.message;
     
     /* create contact instance and set the aggregate property */
-    // this.aggregate.contact = this.contactRepository.create(createContactEvent);
     this.aggregate.contact = this.contactRepository.create({
-      accountId, email, firstName, lastName,  mobilePhone
+      email, firstName, lastName,  mobilePhone
     });
     
-    /* create contact source relation and set the aggregate property */
-    this.aggregate.contactSource = this.contactSourceRepository.create({type, name});
-
     /* create instance of contact account relation; defer assigining actual contactId till save contact  */
     const placeholderContactId: number = -1;
     this.aggregate.contactAcctRel = this.contactAcctRelRepository.create({
       accountId, contactId:  placeholderContactId
     });
+
+    /* create Optional contactSource relation and add to aggregateEntities only if properties exist  */
+    if (sourceName && sourceType) {
+      this.aggregate.contactSource = this.contactSourceRepository.create({ sourceType, sourceName });
+    }
 
     /* assign default version to new contact aggregate */
     this.aggregate.contact.version = this.getInitialVersion();  // append version from aggregate root
@@ -74,17 +78,20 @@ export class ContactAggregate extends AggregateRoot {
     return contact;
   };
 
+  
+  /**
+   * Fetches and returns an object with the entities that make up the aggregate.
+   * @param id 
+   * @returns contactAggregateEntities
+   */
+  async getAggregateEntitiesById(id: number): Promise<ContactAggregateEntities> {
 
-  // https://www.postgresql.org/docs/current/queries-table-expressions.html
-  async loadAggregateById(id: number) {
-
-    // Initialized ContactAggregate Entities
+    // Define mandatory entities only below. Optional entities will be added dynamically
     let contactAggregateEntities: ContactAggregateEntities = {
       contact: null,
-      contactSource: null,
       contactAcctRel: null
     };
-
+    console.log("LETTER B")
     // Define select criteria using database syntax 
     let selectCriteria = `contact.id = ${id}`;
 
@@ -94,22 +101,28 @@ export class ContactAggregate extends AggregateRoot {
       whereClause = 'WHERE ' + selectCriteria;
     }
     
-    // Execute query
+    // Execute query; Note; format sql using native postgres syntax
     const contactArray = await this.dataSource.query(
       `SELECT contact.id as contact_id, version,  first_name, last_name, mobile_phone, 
-              contact_acct_rel.id as acct_rel_id, contact_acct_rel.account_id,
-              contact_source.id as source_id, type as source_type, name as source_name
+              contact_acct_rel.id as acct_rel_id, contact_acct_rel.account_id as account_id,
+              contact_source.id as source_id, source_type, source_name
        FROM contact 
         INNER JOIN contact_acct_rel on contact.id = contact_acct_rel.contact_id
         INNER JOIN contact_source   on contact.id = contact_source.contact_id 
        ${whereClause};
      `
     );
+    console.log("SQL RESULT: ", JSON.stringify(contactArray) )
+    if (contactArray.length < 1) {
+      return contactAggregateEntities
+    }
     let [ contactData ] = contactArray; /* destructure array */
     contactData = camelize(contactData) /* convert to camel case */
-
+    console.log("Contact Data ", JSON.stringify(contactData));
+    console.log("LETTER C")
     // Extract contact data.
-    const { accountId, contactId } = contactData; /* relationship keys */
+    const { accountId, contactId } = contactData;  /* aggreate keys */
+    console.log("Extracted Contact Id ", contactId);
     const { version, email, firstName, lastName, mobilePhone } = contactData; /*contact data */
     const { sourceId, sourceType, sourceName } = contactData;                 /* source data */
     const { acctRelId } = contactData;                                        /* acctRel data */
@@ -119,14 +132,16 @@ export class ContactAggregate extends AggregateRoot {
     /* contact_acct_rel */
     const contactAcctRel = { id: acctRelId, accountId, contactId }
     /* contact_source */
-    const contactSource  = { id: sourceId, contactId,  type: sourceType, name: sourceName };
+    const contactSource  = { id: sourceId, contactId,  sourceType, sourceName };
     // Construct aggregate
     contactAggregateEntities.contact = this.contactRepository.create(contact);
     contactAggregateEntities.contactAcctRel = this.contactAcctRelRepository.create(contactAcctRel);
     contactAggregateEntities.contactSource = this.contactSourceRepository.create(contactSource);
-    
+    console.log("LETTER D")
     // const contactData = 
-    console.log("CONTACT AGGREGATE ", JSON.stringify(contactAggregateEntities, null, 2))
+    console.log("CONTACT AGGREGATE ", JSON.stringify(contactAggregateEntities, null, 2));
+
+    return contactAggregateEntities
   }
 
   // TBD
@@ -134,7 +149,7 @@ export class ContactAggregate extends AggregateRoot {
   // TBD
   loadPartialAggregate() {}
  
-  applyChanges() {};
+  
 
   /* Layers on idempotent busines rules on top of aggregate returned from ContactAggregate.create method */
   async idempotentCreate(
@@ -158,9 +173,8 @@ export class ContactAggregate extends AggregateRoot {
     /* if contact already exists but is not registered in provided account, 
        add the contactAcctRel to the aggregate, and remove the other entities except aggreate root*/
     if (contactExists && !registeredInAcct) {  /* If contact exists but registered in account, register in contactAcctRel table */
-      
-       contactAggregateEntities.contactAcctRel = this.contactAcctRelRepository.create({
-        accountId: contact.accountId, contactId: contactInstance.id
+      contactAggregateEntities.contactAcctRel = this.contactAcctRelRepository.create({
+        accountId: contactAcctRel.accountId, contactId: contactInstance.id
       })
       /* add the contact Id to contact entity to force a save vs create */
       contact.id = contactInstance.id;
@@ -194,6 +208,111 @@ export class ContactAggregate extends AggregateRoot {
   // }
   
 
+  async updateById(id: number, updateObject): Promise<any> {
+    // const updateRequest = { mobilePhone: 9173334444 };
+    
+    // determine entity(ies) being updated
+      // - get keys in the update request
+      // - get keys in the update request
+    // Fetch aggregate entities
+    console.log("LETTER A")
+    const aggregateEntities: ContactAggregateEntities = await this.getAggregateEntitiesById(id);
+    console.log("LETTER E")
+    // console.log("AggregateEntities BEFORE UPDATE  ")
+    // console.log(aggregateEntities)
+    const updatedEntities = this.applyUpdatesToAggregateEntities(updateObject, aggregateEntities)
+    console.log("LETTER F")
+    // console.log("AggregateEntities AFTER UPDATE  ")
+    // console.log(updatedEntities)
+    // get aggregate
+    // let contactAggregate = await this.contactAggregate.getAggregateEntitiesById(id);
+
+    // apply change
+    return updatedEntities;
+  }
+  
+  /**
+   * This method iterates thru the aggregate entities that have been defined and applies the
+   * updates passed in the updateObject. For entities that are not mandatory (eg contactSource), 
+   * they may not appear in the aggregateEntities object. Therefore, we need to handle those
+   * cases in a separate method called applyUpdatesToOptionalEntities.
+   * @param updateObject 
+   * @param aggregateEntities 
+   * @returns aggregateEntities - after updates applied
+   */
+  applyUpdatesToAggregateEntities(updateObject: any, aggregateEntities): ContactAggregateEntities {
+    let entityKeys = Object.keys(aggregateEntities);
+    console.log("Entity keys ", entityKeys);
+
+    // Iterate aggregate entities and apply any updates to them from the updateObject 
+    entityKeys.forEach((key) => {
+      aggregateEntities[key] = this.applyUpdatesToObject(updateObject, aggregateEntities[key])
+    })
+
+    console.log("Aggregate BEFORE OPTIONAL " )
+    console.log(aggregateEntities )
+    // Define list of optional entities
+    const optionalEntityNames  = ['contactSource'];   /* list of optional enity names */
+    // Define list of default objects for each of the entities
+    const defaultEntityObjects = [{ sourceType: 'na', sourceName: 'na' }] /* list of associated optional entity objects */    
+    // Apply updates to the optional entities, if any provided in the updateObject
+    aggregateEntities = this.applyUpdatesToOptionalEntities(
+      optionalEntityNames, defaultEntityObjects, updateObject, aggregateEntities
+    )
+
+    console.log("Aggregate AFTER OPTIONAL " )
+    console.log(aggregateEntities )
+
+   return aggregateEntities;
+  };
+
+  
+  /**
+   * Method is used to handle an optional entities. This allows client to submit an update
+   * to an entity that is not in the aggregateEntities object. It will use the defaultEntityObject
+   * to apply the updates then adds the object to the aggregateEntities object.
+   * This parent function calls the singleton function applyUpdatesToOptionalEntity().
+   * @param optionalEntityNames 
+   * @param defaultEntityObjects 
+   * @param updateObject 
+   * @param aggregateEntities 
+   * @returns 
+   */
+  applyUpdatesToOptionalEntities(optionalEntityNames, defaultEntityObjects, updateObject, aggregateEntities) {
+    for (const i in optionalEntityNames) {
+      aggregateEntities =  this.applyUpdatesToOptionalEntity(
+        optionalEntityNames[i], 
+        defaultEntityObjects[i],
+        updateObject,
+        aggregateEntities
+      )
+    }
+    return aggregateEntities;
+  }
+
+  /**
+   * Check for updates that may have been submitted to update an optional (non-mandatory) entity.
+   * If so, it applies updates to default entity object and then adds entity to aggregateEntities object.
+   */
+  applyUpdatesToOptionalEntity(entityName, defaultEntityObject, updateObject, aggregateEntities) {
+    // Check if entity name is in aggregateEntities object
+    const entityNameExist = this.nameExistInObject(entityName, aggregateEntities);
+
+    // extract entity properties from default object provided.
+    const entityProperties = Object.keys(defaultEntityObject);
+
+    // if entity not in aggregateEntities, use defaultEntityObject to apply updates
+    if (!entityNameExist) {
+      /* checks if updateObject has properties to apply to the default entity properties provided  */
+      let propsToUpdate = entityProperties.filter((prop) => updateObject.includes(prop));
+      /* apply updateObject properties to object, if updates exist */
+      if (propsToUpdate.length > 0) {
+        aggregateEntities[entityName] = this.applyUpdatesToObject(updateObject, defaultEntityObject)
+      }
+    }
+    return aggregateEntities;
+  }
+
   validate() {};
 
 
@@ -226,6 +345,62 @@ export class ContactAggregate extends AggregateRoot {
     console.log(` RULE RESULT: ${JSON.stringify(ruleResult)}`)
     return ruleResult;
   }
+
+
+  //***************************************************************************** 
+  // Helper Methods
+  //***************************************************************************** 
+
+  /**
+   * Applies properties in an updateObject to a targetObject
+   * @param updatesObject 
+   * @param targetObject 
+   * @returns updateObject
+   */
+  applyUpdatesToObject(updatesObject, targetObject) {
+
+    /* Define function that returns array of common properties between the 2 objects */
+    function getCommonPropertiesBetween(object1, object2) {
+      // get update keys
+      let object1Keys = Object.keys(object1);
+      // get target object keys
+      let object2Keys = Object.keys(object2);
+      // extract common keys between both objects
+      let commonKeys = object1Keys.filter(value => object2Keys.includes(value));
+      return commonKeys;
+    }
+
+    /* Define function applies updates in updateObject to targetObject */
+    function applyUpdatesToTargetObject(keysArray, updateObject, targetObject) {
+      let targetWithUpdates = { ...targetObject };
+      keysArray.forEach((key) => targetWithUpdates[key] = updateObject[key]);
+      return targetWithUpdates;
+    }
+
+    // checks if anything to update in object to update
+    let commonProps = getCommonPropertiesBetween(updatesObject, targetObject);
+
+    // if no overlapping(common) properties just return original target object, otherwise 
+    // return updated object
+    let updatedObject = null;
+    if (commonProps.length > 0) {
+        updatedObject = applyUpdatesToTargetObject(commonProps, updatesObject, targetObject)
+    } else {
+      return targetObject
+    }
+
+    return updatedObject;
+  }
+
+  /**
+   * Checks if Name exists in object
+   */
+  nameExistInObject(name: string, objectToCheck): boolean {
+    const entityKeys = Object.keys(objectToCheck); /* get keys */
+    const nameExists = entityKeys.includes(name);  /* see if name is in key array */
+    return nameExists;
+  }
+
 
 }
 

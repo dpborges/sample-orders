@@ -40,6 +40,10 @@ export class ContactAcctRel1676585376640 implements MigrationInterface {
       ON ${TABLE_NAME} USING btree
       (contact_id ASC NULLS LAST)
       TABLESPACE pg_default;
+    CREATE UNIQUE INDEX "idx_account_id"
+      ON contact USING btree
+      (account_id ASC)
+      TABLESPACE pg_default;
   `);
 
     /* Insert Seed Data into Account Table*/
