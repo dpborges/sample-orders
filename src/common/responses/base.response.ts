@@ -12,7 +12,7 @@ type DocLink = {
 };
 
 /* Type of relations; all relations are optional */
-type NamedLinks = {
+interface NamedLinks {
   self?: Link,
   next?: Link,
   find?: Link,

@@ -54,7 +54,157 @@ export class AppController {
   }
 
   @Get('test1')
-  test1(): any {  }
+  test1(): any { 
+      /**
+       * If you would to build the before image and after image for given update request, 
+       * you can do following: 
+       * 1) Use the update request to represent the 'after image' changes.
+       * 2) Use this utility to traverse the aggregateEntities to pick off the attributes
+       *    in the update request to create the 'before image' from only the properties that 
+       *    were updated. 
+       * The output is an object with all the properties updated in the aggregate, before the update
+       */ 
+
+      /* Build a before image for */
+      function buildUpdateImageFromObject(updateRequest, originalObject) {
+        const debug = false;
+
+        function getKeysFromUpdateRequest(updateRequest): Array<string> {
+          /* excludes id property */
+          // const keysFromUpdateRequest = Object.keys(updateRequest).filter(prop => prop !== 'id');
+          const keysFromUpdateRequest = Object.keys(updateRequest);
+          debug && console.log("keysFromUpdateRequest ",keysFromUpdateRequest )
+          return keysFromUpdateRequest
+        }
+        function getKeysFromOriginalObject(originalObject): Array<string> {
+          /* excludes id property */
+          // const keysFromOriginalObject = Object.keys(originalObject).filter(prop => prop !== 'id');
+          const keysFromOriginalObject = Object.keys(originalObject);
+          true && console.log("keysFromOriginalObject ",keysFromOriginalObject )
+          return keysFromOriginalObject
+        }
+        function getCommonKeys(updateKeys, originalObjectKeys) {
+          const commonKeys = updateKeys.filter((updateProp) => originalObjectKeys.includes(updateProp));
+          debug && console.log("commonKeys ", commonKeys)
+          return commonKeys;
+        }
+        function buildUpdateRequestImage(commonKeys, originalObject) {
+          let tempObject = {};
+          commonKeys.forEach((prop) => {
+            if (originalObject[prop]) {
+              tempObject[prop] = originalObject[prop]
+            }
+          });
+          return tempObject;
+        }
+
+        let keysWithUpdates        = getKeysFromUpdateRequest(updateRequest);
+        let keysFromOriginalObject = getKeysFromOriginalObject(originalObject);
+        let commonKeys             = getCommonKeys(keysWithUpdates, keysFromOriginalObject);
+        let beforeUpdateImage      = buildUpdateRequestImage(commonKeys, originalObject);
+        
+        debug && console.log("beforeUpdateImage ", beforeUpdateImage);
+
+        return beforeUpdateImage;
+      } // end of outer function
+
+      // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+      function getBeforeAndAfterUpdates(updateRequest, aggregateEntities) {
+        /* convert object values to an array */
+        const entityObjectArray = R.values(aggregateObject);
+
+        /* build before image using keys from updateRequest and extracting them from original object */
+        const beforeImagesArray  = entityObjectArray.map(
+          (entityObject) => {
+            // console.log("updateRequest ", updateRequest);
+            let updateImage = null;
+            // console.log("mapped entity object before ", entityObject);
+            let beforeImage = buildUpdateImageFromObject(updateRequest, entityObject);
+            // console.log("mapped entity object after ", entityObject);
+            return beforeImage;
+          } 
+        )
+        console.log("Before Images Array")
+        console.log(beforeImagesArray);
+        console.log("Update Request which represents After Image ")
+        console.log(updateRequest);
+        /* merge all update image objects into one flat update image object */
+        const beforeUpdateObject = beforeImagesArray.reduce( 
+            (object1, object2) => R.mergeRight(object1, object2), {} 
+        )
+        console.log("beforeUpdateObject ", beforeUpdateObject);
+        const beforeAndAfterUpdates = {
+          before: beforeUpdateObject,
+          after:  updateRequest
+        }
+        return beforeAndAfterUpdates;
+      }
+      // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+      
+      //MAIN
+      // INPUTS
+      const updateRequest = { id: 1, a: 'a', b: 'b', c: 'c', d: 'd' };
+      const aggregateObject = {
+        objectA: { id: 1, a: 'x', b: 'y' },
+        objectB: { id: 1, c: 'z' },
+        objectC: { id: 1, d: 'f' } 
+      }
+      const beforeAfterUpdates = getBeforeAndAfterUpdates(updateRequest, aggregateObject)
+
+
+      // console.log("Before Update Image")
+      // console.log(beforeUpdateImage)
+      // END OF TRAVERSE ALL OBJECTS IN AGGREGATE
+
+      //   // Main
+      //   let keysWithUpdates        = getKeysFromUpdateRequest(updateRequest);
+      //   let keysFromOriginalObject = getKeysFromOriginalObject(originalObject);
+      //   let commonKeys             = getCommonKeys(keysWithUpdates, keysFromOriginalObject);
+      //   let beforeUpdateImage      = buildUpdateRequestImage(commonKeys, originalObject)
+      //   console.log("commonKeys ", commonKeys)
+      //   console.log("beforeUpdateImage ", beforeUpdateImage)
+      //   return beforeUpdateImage;
+      // } // end of outer function
+
+      
+
+      // let originalObject1  = { id: 1, a: 'x', b: 'y', two: 3, extra1: 1, extra2: 2 };
+      // let originalObject2 = { id: 1, c: 'z' };
+      // // let arrayOfEntities = [originalObject1, originalObject2]
+      // const updateRequest = { id: 1, a: 'a', b: 'b', c: 'c', two: 2 };
+      // let result1 =  buildUpdateImageFromObject(updateRequest, originalObject1);
+      // console.log(result1)
+      // let result2 =  buildUpdateImageFromObject(updateRequest, originalObject2)
+      // console.log(result2)
+      // let result = R.mergeRight(result1, result2);
+      // arrayofEntities.reduce(originalObject1, originalObject2) => {
+      //   let updateImage1 = buildUpdateImageFromObject(updateRequest, originalObject1);
+      //   let updateImage1 = buildUpdateImageFromObject(updateRequest, originalObject1);
+
+      // }
+
+      // const mergeAllObjects = 
+      //   R.mergeRight((accumulator, currentValue) => {
+
+      // });
+      // arrayofEntities.reduce()
+      
+
+      // let results = {
+      //   result1,
+      //   // result2,
+      //   // result
+      // }
+      
+      // let updates = {
+      //   before: beforeUpdateImage,
+      //   after: updateRequest
+      // }
+
+      // return results;
+      return beforeAfterUpdates;
+   } // end of test1
 
   @Get('load')
   async getAggregateEntitiesById(): Promise<ContactAggregateEntities> {
