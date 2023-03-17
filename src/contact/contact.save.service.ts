@@ -11,7 +11,8 @@ import { ContactAggregateEntities } from './aggregate-types/contact.aggregate.ty
 import { ContactCreatedEvent } from 'src/events/contact/domainChanges';
 import { ContactOutbox } from '../outbox/entities/contact.outbox.entity';
 
-// Class is relegated to handling save transaction involving one or more aggregate entities
+// Class is responsible for saving aggregate entities as a one transaction.
+// If an outbox is include in the within the AggregateEntities object, it will included in transaction.
 // Persistent rules are handled in the domain aggregate class
 @Injectable()
 export class ContactSaveService {
@@ -25,8 +26,7 @@ export class ContactSaveService {
   ) {}
   
   async save(
-      contactAggregateEntities: ContactAggregateEntities,
-      generatedEvents: Array<ContactCreatedEvent>,
+      contactAggregateEntities: ContactAggregateEntities
       // headerInfo: 
     ): Promise<Contact> {
     /* establish connection  */

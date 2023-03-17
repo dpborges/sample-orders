@@ -54,81 +54,21 @@ export class AppController {
   }
 
   @Get('test1')
-  test1(): any {
-
-    // Function Takes 2 inputs:  update object and the updateTargetObject
-    // Updates target object with same properties found in update object,
-    // if any , and returns either updated object or null.
-
-    /* returns array of common properties between the 2 objects */
-    function getCommonPropertiesBetween(object1, object2) {
-      // get update keys
-      let object1Keys = Object.keys(object1);
-      // get target object keys
-      let object2Keys = Object.keys(object2);
-      // extract common keys between both objects
-      let commonKeys = object1Keys.filter(value => object2Keys.includes(value));
-      return commonKeys;
-    }
-
-    function applyUpdatesToTargetObject(keysArray, updateObject, targetObject) {
-      let targetWithUpdates = { ...targetObject };
-      keysArray.forEach((key) => targetWithUpdates[key] = updateObject[key]);
-      return targetWithUpdates;
-    }
-
-    let objectWithUpdates = { a: 'u1', b: 'u2' }
-    let objectToUpdate = { id: 23, a: 'aa', b: 'bb', c: 'cc' };
-
-    // checks if anything to update in object to update
-    let commonProps = getCommonPropertiesBetween(objectWithUpdates, objectToUpdate);
-
-    let updatedObject = null;
-    if (commonProps.length > 0) {
-        updatedObject = applyUpdatesToTargetObject(commonProps, objectWithUpdates, objectToUpdate)
-    } 
-     // updateKeys = R.reject((key) => key === 'id', updateKeys); 
-
-    // // get update keys
-    // let updateKeys = Object.keys(objectWithUpdates);
-    // // get keys
-    // let objectToUpdateKeys = Object.keys(objectToUpdate);
-    // // exclude id
-    // updateKeys = R.reject((key) => key === 'id', updateKeys);
-
-    // // extract common keys between objectWithUpdates and ObjectToUpdate
-    // let commonKeys = updateKeys.filter(value => contactKeys.includes(value));
-
-    // // if there are updates for contact, contruct contactUpdates object
-    // let contactUpdatesObject = {};
-    // if (contactUpdateKeys.length > 0 ) {
-    //   contactUpdateKeys.forEach((key) => contactUpdatesObject[key] = update[key])
-    // }
-    // console.log("contactUpdatesObject ", contactUpdatesObject)
-    
-    // let updatedObject = Object.assign(contact, contactUpdatesObject)
-    // // let result = contactKeys;
-    
-    // let result = updatedObject;
-
-    
-
-    return updatedObject;
-  }
+  test1(): any {  }
 
   @Get('load')
   async getAggregateEntitiesById(): Promise<ContactAggregateEntities> {
-    const contactId = 4;
+    const contactId = 8;
     const result = await this.contactAggregate.getAggregateEntitiesById(contactId);
     console.log("CONTACT AGGREGATE ENTITIES ", result);
     return result;
   }
 
   @Get('update')
-  async updateById(): Promise<ContactAggregateEntities> {
-    const contactId = 10;
+  async updateAggregateById(): Promise<ContactAggregateEntities> {
+    const contactId = 9;
     const updateObject = { mobilePhone: 9171112222, sourceType: "application", sourceName: "contentmgr" };
-    const result = await this.contactAggregate.updateById(contactId, updateObject)
+    const result: any = await this.contactService.updateAggregateById(contactId, updateObject)
     console.log("CONTACT AGGREGATE ENTITIES ", result);
     return result;
   }

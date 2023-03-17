@@ -14,6 +14,8 @@ import { BusinessRule } from '../business-rules/business-rule.enum';
 // import { TransactionStatus } from './transaction-status.type-DELETE-ts'
 import { CreateContactEvent } from 'src/events/contact/commands';
 import { ContactCreatedEvent } from 'src/events/contact/domainChanges';
+import { contactAcctSourceSql } from '../dbqueries/contact.acct.source';
+import { contactAcctSql } from '../dbqueries/contact.acct';
 
 // Class used to construct aggregate object with related entities from event payload/
 // This class also centralizes aggregate business rules in this one class.
@@ -69,14 +71,14 @@ export class ContactAggregate extends AggregateRoot {
   };
 
   /* returns entire aggregate  */
-  async findById(id): Promise<any> {
-    const contact = this.dataSource
-      .getRepository(Contact)
-      .createQueryBuilder("contact")
-      .where("contact.id = :id", {id: 1})
-      .getOne()
-    return contact;
-  };
+  // async findById(id): Promise<any> {
+  //   const contact = this.dataSource
+  //     .getRepository(Contact)
+  //     .createQueryBuilder("contact")
+  //     .where("contact.id = :id", {id: 1})
+  //     .getOne()
+  //   return contact;
+  // };
 
   
   /**
@@ -86,33 +88,27 @@ export class ContactAggregate extends AggregateRoot {
    */
   async getAggregateEntitiesById(id: number): Promise<ContactAggregateEntities> {
 
-    // Define mandatory entities only below. Optional entities will be added dynamically
+    // Initialize mandatory entities only below. Optional entities will be added dynamically
     let contactAggregateEntities: ContactAggregateEntities = {
       contact: null,
       contactAcctRel: null
     };
     console.log("LETTER B")
-    // Define select criteria using database syntax 
+    // Define where clause using database syntax (not camelcase)
     let selectCriteria = `contact.id = ${id}`;
-
-    // Construct Where clause
-    let whereClause = '';
-    if (selectCriteria) {
-      whereClause = 'WHERE ' + selectCriteria;
-    }
+    let whereClause = 'WHERE ' + selectCriteria;
     
-    // Execute query; Note; format sql using native postgres syntax
-    const contactArray = await this.dataSource.query(
-      `SELECT contact.id as contact_id, version,  first_name, last_name, mobile_phone, 
-              contact_acct_rel.id as acct_rel_id, contact_acct_rel.account_id as account_id,
-              contact_source.id as source_id, source_type, source_name
-       FROM contact 
-        INNER JOIN contact_acct_rel on contact.id = contact_acct_rel.contact_id
-        INNER JOIN contact_source   on contact.id = contact_source.contact_id 
-       ${whereClause};
-     `
-    );
+    // select query based on whether optional entity exist or not
+    let sqlStatement = contactAcctSourceSql(whereClause); /* defaults to joining 3 tables */
+    const contactSourceExists = await this.contactSourceExists(id)
+    if (!contactSourceExists) {
+      sqlStatement = contactAcctSql(whereClause);         /* joins contact & acct tbl only */
+    }
+    // Execute query
+    const contactArray = await this.dataSource.query(sqlStatement);
+    
     console.log("SQL RESULT: ", JSON.stringify(contactArray) )
+    // If no results, return the initialized contactAggregateEntities object 'as-is'
     if (contactArray.length < 1) {
       return contactAggregateEntities
     }
@@ -120,27 +116,33 @@ export class ContactAggregate extends AggregateRoot {
     contactData = camelize(contactData) /* convert to camel case */
     console.log("Contact Data ", JSON.stringify(contactData));
     console.log("LETTER C")
+
     // Extract contact data.
-    const { accountId, contactId } = contactData;  /* aggreate keys */
-    console.log("Extracted Contact Id ", contactId);
+    /* pull out major aggregate keys */
+    const { accountId, contactId } = contactData;  
+    /* pull entity data */
     const { version, email, firstName, lastName, mobilePhone } = contactData; /*contact data */
     const { sourceId, sourceType, sourceName } = contactData;                 /* source data */
     const { acctRelId } = contactData;                                        /* acctRel data */
+    if (!sourceId) { console.log("NO SOURCE ID")}
     // Construct Entity objects.                                  
     /* contact */
     const contact = { id: contactId, version, email, firstName, lastName, mobilePhone }
     /* contact_acct_rel */
     const contactAcctRel = { id: acctRelId, accountId, contactId }
-    /* contact_source */
+    /* optional contact_source; add only if exists */
     const contactSource  = { id: sourceId, contactId,  sourceType, sourceName };
     // Construct aggregate
     contactAggregateEntities.contact = this.contactRepository.create(contact);
     contactAggregateEntities.contactAcctRel = this.contactAcctRelRepository.create(contactAcctRel);
-    contactAggregateEntities.contactSource = this.contactSourceRepository.create(contactSource);
+    if (sourceId) {  /* optional contact_source; add only if exists */
+      contactAggregateEntities.contactSource = this.contactSourceRepository.create(contactSource);
+    }
     console.log("LETTER D")
     // const contactData = 
     console.log("CONTACT AGGREGATE ", JSON.stringify(contactAggregateEntities, null, 2));
 
+    /* returns only aggregate entities that exist; if not, the entity is omitted*/
     return contactAggregateEntities
   }
 
@@ -184,7 +186,7 @@ export class ContactAggregate extends AggregateRoot {
     console.log("    generated Event ", JSON.stringify(generatedEvents))
 
     /* returns the aggregate root */
-    return await this.contactSaveService.save(contactAggregateEntities, generatedEvents) 
+    return await this.contactSaveService.save(contactAggregateEntities) ;
   }
  
  async runAsyncBusinessRule(businessRule, ruleInputs) {
@@ -208,7 +210,7 @@ export class ContactAggregate extends AggregateRoot {
   // }
   
 
-  async updateById(id: number, updateObject): Promise<any> {
+  async updateAggregateById(id: number, updateObject): Promise<any> {
     // const updateRequest = { mobilePhone: 9173334444 };
     
     // determine entity(ies) being updated
@@ -222,6 +224,7 @@ export class ContactAggregate extends AggregateRoot {
     // console.log(aggregateEntities)
     const updatedEntities = this.applyUpdatesToAggregateEntities(updateObject, aggregateEntities)
     console.log("LETTER F")
+    return await this.contactSaveService.save(updatedEntities) ;
     // console.log("AggregateEntities AFTER UPDATE  ")
     // console.log(updatedEntities)
     // get aggregate
@@ -252,10 +255,10 @@ export class ContactAggregate extends AggregateRoot {
     console.log("Aggregate BEFORE OPTIONAL " )
     console.log(aggregateEntities )
     // Define list of optional entities
-    const optionalEntityNames  = ['contactSource'];   /* list of optional enity names */
+    const optionalEntityNames  = ['contactSource'];   /* list of optional entity names */
     // Define list of default objects for each of the entities
     const defaultEntityObjects = [{ sourceType: 'na', sourceName: 'na' }] /* list of associated optional entity objects */    
-    // Apply updates to the optional entities, if any provided in the updateObject
+    // Apply updates to the optional entities, if properties are provided in the updateObject
     aggregateEntities = this.applyUpdatesToOptionalEntities(
       optionalEntityNames, defaultEntityObjects, updateObject, aggregateEntities
     )
@@ -295,21 +298,33 @@ export class ContactAggregate extends AggregateRoot {
    * If so, it applies updates to default entity object and then adds entity to aggregateEntities object.
    */
   applyUpdatesToOptionalEntity(entityName, defaultEntityObject, updateObject, aggregateEntities) {
+    console.log(">>> INSIDE applyUpdatesToOptionalEntity")
+    console.log("    entityName:", entityName)
+    console.log("    defaultEntityObject:", defaultEntityObject)
+    console.log("    updateObject:", updateObject)
+    console.log("    aggregateEntities:", aggregateEntities)
     // Check if entity name is in aggregateEntities object
     const entityNameExist = this.nameExistInObject(entityName, aggregateEntities);
+    console.log("    entityNameExist:", entityNameExist)
 
     // extract entity properties from default object provided.
     const entityProperties = Object.keys(defaultEntityObject);
+    console.log("    entityProperties:", entityProperties)
 
     // if entity not in aggregateEntities, use defaultEntityObject to apply updates
     if (!entityNameExist) {
+      console.log("    entityNameExist: FALSE")
       /* checks if updateObject has properties to apply to the default entity properties provided  */
-      let propsToUpdate = entityProperties.filter((prop) => updateObject.includes(prop));
+      let updateObjectProperties = Object.keys(updateObject)
+      let propsToUpdate = entityProperties.filter((prop) => updateObjectProperties.includes(prop));
       /* apply updateObject properties to object, if updates exist */
       if (propsToUpdate.length > 0) {
-        aggregateEntities[entityName] = this.applyUpdatesToObject(updateObject, defaultEntityObject)
+        console.log("    propsToUpdate: EXIST")
+        aggregateEntities[entityName] = this.applyUpdatesToObject(updateObject, defaultEntityObject);
+        console.log("    aggregateEntities: ", aggregateEntities)
       }
     }
+
     return aggregateEntities;
   }
 
@@ -399,6 +414,10 @@ export class ContactAggregate extends AggregateRoot {
     const entityKeys = Object.keys(objectToCheck); /* get keys */
     const nameExists = entityKeys.includes(name);  /* see if name is in key array */
     return nameExists;
+  }
+
+  async contactSourceExists(id) {
+    return await this.contactSourceRepository.findOne({ where: { id } });
   }
 
 

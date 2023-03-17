@@ -32,6 +32,7 @@ export class ContactService {
     private outboxService: OutboxService,
     private domainChangeEventFactory: DomainChangeEventFactory,
     private domainChangeEventManager: DomainChangeEventManager, 
+    private contactSaveService: ContactSaveService
     // @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
   ) {
     /* set domainChangeEventsEnabled flag */
@@ -40,18 +41,19 @@ export class ContactService {
     }
   }
   
-  async updateById(id: number) {
-    const updateRequest = { id, mobilePhone: 9173334444 };
+  async updateAggregateById(id: number, updateRequest) {
+    // const updateRequest = { id, mobilePhone: 9173334444 };
 
-    // determine entity(ies) being updated
-    const contactAggregateEntities = await this.contactAggregate.getAggregateEntitiesById(id);
+    // load the aggregate by aggregate id, update it using updateRequest object, and return
+    const updatedAggregateEntities = await this.contactAggregate.updateAggregateById(id, updateRequest)
+    
+    /* handle requirement for publishing Created event  */
+    // this.prepareDomainUpdatedEvent(updateContactEvent, aggregate);
 
-    const updatedAggregateEntities = this.contactAggregate.updateById(id, updateRequest)
-    // get aggregate
-    // let contactAggregate = await this.contactAggregate.getAggregateEntitiesById(id);
+    // save changes
+    const savedContact = await this.contactSaveService.save(updatedAggregateEntities);
 
-    // apply change
-
+    return savedContact;
   }
  
 
@@ -93,7 +95,7 @@ export class ContactService {
 
   /**
    * Prepares the event and the outbox instance to publish a domain created event.
-   * Note that the domainChangeEventsEnabled flag must be set.
+   * Note that the domainChangeEventsEnabled flag must be set to true.
    * @param createContactEvent 
    * @param aggregate 
    */
