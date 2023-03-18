@@ -28,7 +28,7 @@ export class ContactSaveService {
   async save(
       contactAggregateEntities: ContactAggregateEntities
       // headerInfo: 
-    ): Promise<Contact> {
+    ): Promise<ContactAggregateEntities> {
     /* establish connection  */
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -43,18 +43,18 @@ export class ContactSaveService {
     try {
       if (contact) {
         /* save contact  */
-        contact = await this.contactRepository.save(contactAggregateEntities.contact)
+        contactAggregateEntities.contact = await this.contactRepository.save(contactAggregateEntities.contact)
       } 
       if (contactSource) {
         /* assign contact id to contactSource to establish 1:1 relationship */
         contactSource.contactId = contact.id;
         /* save contactSource */
-        const savedContactSource: ContactSource = await this.contactSourceRepository.save(contactAggregateEntities.contactSource)
+        contactAggregateEntities.contactSource = await this.contactSourceRepository.save(contactAggregateEntities.contactSource)
       }
       if (contactAcctRel) {
         /* create contact -> account relationship, where one contact may exist in multiple accounts */
         contactAcctRel.contactId = contact.id;
-        const savedContactAcctRel: ContactAcctRel = await this.contactAcctRelRepository.save(contactAggregateEntities.contactAcctRel)
+        contactAggregateEntities.contactAcctRel = await this.contactAcctRelRepository.save(contactAggregateEntities.contactAcctRel)
       } 
       /* save generated events to outbox */
       if (contactOutbox) {
@@ -65,13 +65,12 @@ export class ContactSaveService {
       // rollback changes 
       await queryRunner.rollbackTransaction();
       // nullify aggregate root object
-      contact = null;
+      contactAggregateEntities.contact = null;
     } finally {
       // release query runner which is manually created:
       await queryRunner.release();
     }
-
-    return contact;
+    return contactAggregateEntities;
   };
 
 

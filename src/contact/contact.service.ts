@@ -1,3 +1,4 @@
+import { ContactUpdatedResponse } from './responses/contact.updated.response';
 import { ConfigModule } from '@nestjs/config';
 import { OutboxService } from './../outbox/outbox.service';
 import { CreateContactResponse } from './../common/responses/command.response';
@@ -16,7 +17,8 @@ import { ContactOutbox } from '../outbox/entities/contact.outbox.entity';
 import { DomainChangeEventFactory } from './domain.change.event.factory';
 import { DomainChangeEventManager } from 'src/outbox/domainchange.event.manager';
 import { ConfigService }  from '@nestjs/config';
-
+import { genBeforeAndAfterImage } from '../utils/gen.beforeAfter.image';
+import { DataChanges } from '../common/responses/base.response'
 
 @Injectable()
 export class ContactService {
@@ -41,19 +43,48 @@ export class ContactService {
     }
   }
   
-  async updateAggregateById(id: number, updateRequest) {
-    // const updateRequest = { id, mobilePhone: 9173334444 };
-
-    // load the aggregate by aggregate id, update it using updateRequest object, and return
-    const updatedAggregateEntities = await this.contactAggregate.updateAggregateById(id, updateRequest)
+  async updateAggregateById(id: number, updateRequest): Promise<ContactUpdatedResponse | ServerError> {
     
+    console.log("[A]")
+    /* fetch aggregate entities */
+    const aggregateEntities: ContactAggregateEntities = await this.getAggregateEntitiesById(id);
+    console.log("[B]")
+    /* apply updates to aggregate entities */
+    let updatedAggregateEntities: ContactAggregateEntities;
+    updatedAggregateEntities = this.contactAggregate.applyUpdates(updateRequest, aggregateEntities)
+    console.log("updatedAggregateEntities")
+    console.log(updatedAggregateEntities);
+    console.log("[C]")
+    /* generate before and after image  */
+    const beforeAndAfterImage: DataChanges = this.contactAggregate.generateBeforeAndAfterImages(updateRequest, updatedAggregateEntities);
+    console.log("beforeAndAfterImage");
+    console.log(beforeAndAfterImage);
+    
+    console.log("[D]")
+
     /* handle requirement for publishing Created event  */
     // this.prepareDomainUpdatedEvent(updateContactEvent, aggregate);
-
+    
     // save changes
-    const savedContact = await this.contactSaveService.save(updatedAggregateEntities);
+    let savedAggregateEntities: ContactAggregateEntities;
+    savedAggregateEntities = await this.contactSaveService.save(updatedAggregateEntities);
+    console.log("[E]")
 
-    return savedContact;
+    /* if save was NOT successful, return error response */
+    if (!savedAggregateEntities.contact) {
+      return new ServerError(500);
+    }
+    console.log("[F]")
+    // create response object
+    const { id: contactId } = savedAggregateEntities.contact;
+    const dataChanges: DataChanges =  beforeAndAfterImage;
+    const contactUpdatedResponse: ContactUpdatedResponse = new ContactUpdatedResponse(contactId);
+    contactUpdatedResponse.setUpdateImages(beforeAndAfterImage);
+    console.log("contactUpdatedResponse")
+    console.log(contactUpdatedResponse)
+
+    console.log("[G]")
+    return contactUpdatedResponse;
   }
  
 
@@ -77,10 +108,10 @@ export class ContactService {
     this.prepareDomainCreatedEvent(createContactEvent, aggregate);
 
     /* Save the aggregate members, the generated event(s) to outbox, and return aggregate root */
-    let aggregateRoot: Contact = await this.contactAggregate.idempotentCreate(aggregate, this.generatedEvents);
+    let aggregateEntities: ContactAggregateEntities = await this.contactAggregate.idempotentCreate(aggregate, this.generatedEvents);
 
     /* if save was NOT successful, return error response */
-    if (!aggregateRoot) {
+    if (!aggregateEntities.contact) {
       return new ServerError(500);
     }
     
@@ -88,14 +119,15 @@ export class ContactService {
     const cmdResult: any = await this.domainChangeEventManager.triggerOutboxForAccount(accountId)
 
     /* create response object using aggregateRoot.id */
-    let createEntityResponse: CreateContactResponse = new CreateContactResponse(aggregateRoot.id);
+    const { contact } = aggregateEntities;
+    let createEntityResponse: CreateContactResponse = new CreateContactResponse(contact.id);
 
     return createEntityResponse;
   }
 
   /**
    * Prepares the event and the outbox instance to publish a domain created event.
-   * Note that the domainChangeEventsEnabled flag must be set to true.
+   * Note that the domainChangeEventsEnabled flag must be set to publish events.
    * @param createContactEvent 
    * @param aggregate 
    */

@@ -1,3 +1,4 @@
+import { DataChanges } from './../../common/responses/base.response';
 var camelize = require('camelize');
 import { contactRepositories } from './../repos/contact.repositories';
 import { ContactAcctRel } from './../entities/contact.acct.rel.entity';
@@ -16,6 +17,7 @@ import { CreateContactEvent } from 'src/events/contact/commands';
 import { ContactCreatedEvent } from 'src/events/contact/domainChanges';
 import { contactAcctSourceSql } from '../dbqueries/contact.acct.source';
 import { contactAcctSql } from '../dbqueries/contact.acct';
+import { genBeforeAndAfterImage } from '../../utils/gen.beforeAfter.image';
 
 // Class used to construct aggregate object with related entities from event payload/
 // This class also centralizes aggregate business rules in this one class.
@@ -157,7 +159,7 @@ export class ContactAggregate extends AggregateRoot {
   async idempotentCreate(
     contactAggregateEntities: ContactAggregateEntities,
     generatedEvents: Array<ContactCreatedEvent>
-  ): Promise<Contact> {
+  ): Promise<ContactAggregateEntities> {
     console.log(">>>> Inside contactAggregate.save()")
 
     /* pull out individual entities from aggregate */
@@ -210,29 +212,17 @@ export class ContactAggregate extends AggregateRoot {
   // }
   
 
-  async updateAggregateById(id: number, updateObject): Promise<any> {
-    // const updateRequest = { mobilePhone: 9173334444 };
-    
-    // determine entity(ies) being updated
-      // - get keys in the update request
-      // - get keys in the update request
-    // Fetch aggregate entities
-    console.log("LETTER A")
-    const aggregateEntities: ContactAggregateEntities = await this.getAggregateEntitiesById(id);
-    console.log("LETTER E")
-    // console.log("AggregateEntities BEFORE UPDATE  ")
-    // console.log(aggregateEntities)
-    const updatedEntities = this.applyUpdatesToAggregateEntities(updateObject, aggregateEntities)
-    console.log("LETTER F")
-    return await this.contactSaveService.save(updatedEntities) ;
-    // console.log("AggregateEntities AFTER UPDATE  ")
-    // console.log(updatedEntities)
-    // get aggregate
-    // let contactAggregate = await this.contactAggregate.getAggregateEntitiesById(id);
-
-    // apply change
+  applyUpdates(updateRequest, aggregateEntities: ContactAggregateEntities): ContactAggregateEntities {
+    let updatedEntities: ContactAggregateEntities;
+    updatedEntities = this.applyUpdatesToAggregateEntities(updateRequest, aggregateEntities)
     return updatedEntities;
   }
+
+  generateBeforeAndAfterImages(updateRequest, aggregateEntities: ContactAggregateEntities): DataChanges {
+    const beforeAndAfterImages = genBeforeAndAfterImage(updateRequest, aggregateEntities)
+    return beforeAndAfterImages;
+  }
+
   
   /**
    * This method iterates thru the aggregate entities that have been defined and applies the
@@ -252,6 +242,7 @@ export class ContactAggregate extends AggregateRoot {
       aggregateEntities[key] = this.applyUpdatesToObject(updateObject, aggregateEntities[key])
     })
 
+    // Handle Optional Entities Here
     console.log("Aggregate BEFORE OPTIONAL " )
     console.log(aggregateEntities )
     // Define list of optional entities

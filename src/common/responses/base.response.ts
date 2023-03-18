@@ -24,26 +24,26 @@ interface NamedLinks {
 type ResponseAttrs = { 
   id?: number | string, 
   namedLinks?: NamedLinks,
-  updates?: Updates
+  dataChanges?: DataChanges
 }
 
-type Updates = { 
-  id: string | number, 
-  domain: string, 
-  before: any, 
-  after: any 
+interface DataChanges { 
+    before: any, 
+    after: any 
 };
 
+
 /* Base Response  */
-export class BaseResponse  {
+class BaseResponse  {
   protected id?:      string | number;
   protected _links:   NamedLinks;   /* object with named relations */
-  protected updates?: Updates;
+  protected dataChanges?: DataChanges;
+  protected domain: string
 
-  constructor(id?: string | number, namedLinks?:NamedLinks, updates?: Updates ) {
+  constructor(id?: string | number, namedLinks?:NamedLinks, dataChanges?: DataChanges ) {
     if (id)         { this.id = id }
     if (namedLinks) { this._links = namedLinks }
-    if (updates)    { this.updates = updates }
+    if (dataChanges)    { this.dataChanges = dataChanges }
   }
 
   setId(id) {
@@ -52,7 +52,17 @@ export class BaseResponse  {
   setNamedLinks(namedLinks) {
     this._links = namedLinks
   }
-  setUpdateImages(updates: Updates) {
-    this.updates = updates;
+  setUpdateImages(dataChanges: DataChanges) {
+    this.dataChanges = dataChanges;
   }
+
+  toString() {
+    let returnObject: any = {};
+    if (this.id) { returnObject.id = this.id; }
+    if (this.domain) { returnObject.domain = this.domain; }
+    if (this.dataChanges) { returnObject.dataChanges = this.dataChanges; }
+  }
+
 }
+
+export { BaseResponse, DataChanges }
