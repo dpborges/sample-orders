@@ -10,7 +10,6 @@ export function genBeforeAndAfterImage(updateRequest, aggregateEntities): any {
   
   // console.log("    parm: updateRequest:", updateRequest)    
   // console.log("    parm: updateRequest:", updateRequest)    
-  
 
   /**
    * Constructs a before and after image for a given update request aggregate.
@@ -50,7 +49,6 @@ export function genBeforeAndAfterImage(updateRequest, aggregateEntities): any {
     }
 
     logStop(funcName, "beforeAndAfterChanges", beforeAndAfterChanges);
-
     return beforeAndAfterChanges;
   }
 

@@ -18,7 +18,11 @@ import { DomainChangeEventFactory } from './domain.change.event.factory';
 import { DomainChangeEventManager } from 'src/outbox/domainchange.event.manager';
 import { ConfigService }  from '@nestjs/config';
 import { genBeforeAndAfterImage } from '../utils/gen.beforeAfter.image';
-import { DataChanges } from '../common/responses/base.response'
+import { DataChanges } from '../common/responses/base.response';
+import { UpdateContactEvent } from '../events/contact/commands';
+import { logStart, logStop } from 'src/utils/trace.log';
+import { BaseError, ClientError } from 'src/common/errors';
+const logTrace = true;
 
 @Injectable()
 export class ContactService {
@@ -43,54 +47,108 @@ export class ContactService {
     }
   }
   
-  async updateAggregateById(id: number, updateRequest): Promise<ContactUpdatedResponse | ServerError> {
+  async updateAggregate(payload: UpdateContactEvent): Promise<ContactUpdatedResponse | BaseError> {
+    const methodName = 'updateAggregate';
+    logTrace && logStart([methodName, 'payload'], arguments);
     
-    console.log("[A]")
+    const { header, message } = payload;
+    
+    // Pull out updateRequest from message by excluding accountId and email. 
+    const { accountId, email, ...rest }  = message;
+    let updateRequest = { ...rest }; 
+
     /* fetch aggregate entities */
-    const aggregateEntities: ContactAggregateEntities = await this.getAggregateEntitiesById(id);
-    console.log("[B]")
+    const aggregateEntities: ContactAggregateEntities = await this.contactAggregate.getAggregateEntitiesBy(accountId, email);
+
+    /* if not foud return 404 */
+    if (!aggregateEntities.contact) {
+      let clientError = new ClientError(404);
+      clientError.setLongMessage(`contact email ${email}; from '${methodName}'`)
+      return clientError;
+    }
+
+    /* generate before and after image  */
+    const beforeAndAfterImage: DataChanges = this.contactAggregate.generateBeforeAndAfterImages(updateRequest, aggregateEntities);
     /* apply updates to aggregate entities */
+
     let updatedAggregateEntities: ContactAggregateEntities;
     updatedAggregateEntities = this.contactAggregate.applyUpdates(updateRequest, aggregateEntities)
-    console.log("updatedAggregateEntities")
-    console.log(updatedAggregateEntities);
-    console.log("[C]")
-    /* generate before and after image  */
-    const beforeAndAfterImage: DataChanges = this.contactAggregate.generateBeforeAndAfterImages(updateRequest, updatedAggregateEntities);
-    console.log("beforeAndAfterImage");
-    console.log(beforeAndAfterImage);
-    
-    console.log("[D]")
-
-    /* handle requirement for publishing Created event  */
+       
+    /* handle requirement for publishing domain updated event  */
     // this.prepareDomainUpdatedEvent(updateContactEvent, aggregate);
     
     // save changes
     let savedAggregateEntities: ContactAggregateEntities;
     savedAggregateEntities = await this.contactSaveService.save(updatedAggregateEntities);
-    console.log("[E]")
 
     /* if save was NOT successful, return error response */
     if (!savedAggregateEntities.contact) {
-      return new ServerError(500);
+      let serverError = new ServerError(500);
+      serverError.setLongMessage(`problem saving contact agggregate with email ${email} in ${methodName}`);
+      return serverError;
     }
-    console.log("[F]")
+    console.log("[FF]")
     // create response object
     const { id: contactId } = savedAggregateEntities.contact;
     const dataChanges: DataChanges =  beforeAndAfterImage;
     const contactUpdatedResponse: ContactUpdatedResponse = new ContactUpdatedResponse(contactId);
     contactUpdatedResponse.setUpdateImages(beforeAndAfterImage);
-    console.log("contactUpdatedResponse")
-    console.log(contactUpdatedResponse)
-
-    console.log("[G]")
+   
+    logTrace && logStop(methodName, "contactUpdatedResponse", contactUpdatedResponse);
     return contactUpdatedResponse;
   }
+
+  // TO BE DETERMINED NEED TO DECIDE IF THIS IS NEEDED
+  // IF I ENABLE THIS AGAIN, COPY EXCEPTOIN HANDLING FROM upgradeAggregate(payload)
+  // async updateAggregateById(id: number, updateRequest): Promise<ContactUpdatedResponse | ServerError> {
+  //   console.log("[A]")
+  //   /* fetch aggregate entities */
+  //   const aggregateEntities: ContactAggregateEntities = await this.getAggregateEntitiesById(id);
+  //   console.log("[B]")
+  //   /* apply updates to aggregate entities */
+  //   let updatedAggregateEntities: ContactAggregateEntities;
+  //   updatedAggregateEntities = this.contactAggregate.applyUpdates(updateRequest, aggregateEntities)
+  //   console.log("updatedAggregateEntities")
+  //   console.log(updatedAggregateEntities);
+  //   console.log("[C]")
+  //   /* generate before and after image  */
+  //   const beforeAndAfterImage: DataChanges = this.contactAggregate.generateBeforeAndAfterImages(updateRequest, updatedAggregateEntities);
+  //   console.log("beforeAndAfterImage");
+  //   console.log(beforeAndAfterImage);
+    
+  //   console.log("[D]")
+
+  //   /* handle requirement for publishing Created event  */
+  //   // this.prepareDomainUpdatedEvent(updateContactEvent, aggregate);
+    
+  //   // save changes
+  //   let savedAggregateEntities: ContactAggregateEntities;
+  //   savedAggregateEntities = await this.contactSaveService.save(updatedAggregateEntities);
+  //   console.log("[E]")
+
+  //   /* if save was NOT successful, return error response */
+  //   if (!savedAggregateEntities.contact) {
+  //     return new ServerError(500);
+  //   }
+  //   console.log("[F]")
+  //   // create response object
+  //   const { id: contactId } = savedAggregateEntities.contact;
+  //   const dataChanges: DataChanges =  beforeAndAfterImage;
+  //   const contactUpdatedResponse: ContactUpdatedResponse = new ContactUpdatedResponse(contactId);
+  //   contactUpdatedResponse.setUpdateImages(beforeAndAfterImage);
+  //   console.log("contactUpdatedResponse")
+  //   console.log(contactUpdatedResponse)
+
+  //   console.log("[G]")
+  //   return contactUpdatedResponse;
+  // }
+ 
+  // To Be DELETED
+  // async getAggregateEntitiesById(id: number): Promise<ContactAggregateEntities> {
+  //   return await this.contactAggregate.getAggregateEntitiesById(id);
+  // }
  
 
-  async getAggregateEntitiesById(id: number): Promise<ContactAggregateEntities> {
-    return await this.contactAggregate.getAggregateEntitiesById(id);
-  }
 
   // service used to create aggreate, then save it.
   async create(createContactEvent: CreateContactEvent):  Promise<CreateEntityResponse | ServerError> {
@@ -147,6 +205,33 @@ export class ContactService {
     let contactOutboxInstance: ContactOutbox = await this.outboxService.generateContactCreatedInstances(
           createContactEvent, 
           serializedContactCreatedEvent
+        );
+    /* append instance to the aggregate  */
+    aggregate.contactOutbox = contactOutboxInstance;
+  }
+
+  /**
+   * Prepares the event and the outbox instance to publish a domain updated event.
+   * Note that the domainChangeEventsEnabled flag must be set to publish events.
+   * @param createContactEvent 
+   * @param aggregate 
+   */
+  async prepareDomainUpdatedEvent(
+    updateContactEvent: UpdateContactEvent, 
+    aggregate: ContactAggregateEntities) 
+  {
+    /* If flag is disabled to publish domain updated events, return */
+    if (!this.domainChangeEventsEnabled) {  
+      return;  
+    } 
+
+    /* create serialized contactCreatedEvent */
+    const serializedContactUpdatedEvent = this.domainChangeEventFactory.getCreatedEventFor(updateContactEvent);
+
+    /* create Outbox Instance of contactCreatedEvent, from createContactEvent */
+    let contactOutboxInstance: ContactOutbox = await this.outboxService.generateContactUpdatedInstances(
+          updateContactEvent, 
+          serializedContactUpdatedEvent
         );
     /* append instance to the aggregate  */
     aggregate.contactOutbox = contactOutboxInstance;

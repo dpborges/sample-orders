@@ -1,16 +1,18 @@
 /**
- * Enums defining standard client error messages
+ * Enums defining standard server error messages
  */
 
-/* Specified in setReason */
-export enum ClientErrorReasons {
-  IncorrectSyntax  = 'Incorrect Syntax',
-  UnexpectedResponse = 'Unexpected Response',
-  TooLarge   = 'Size to large',
-  InvalidRequest    = 'Request Invalid'
-}
+// THIS IS COPIED FROM CLIENT ERROR STANDARD TEXT AS A TEMPLATE TO USE FOR SERVER
 
-/* Specified in setLongMessage */
-export enum ClientErrorDetail {
-  TryAgainLater  = 'Try again later. If persists, report problem to site adminstrator.',
-}
+/* Specified in setReason */
+// export enum ClientErrorReasons {
+//   IncorrectSyntax  = 'Incorrect Syntax',
+//   UnexpectedResponse = 'Unexpected Response',
+//   TooLarge   = 'Size to large',
+//   InvalidRequest    = 'Request Invalid'
+// }
+
+// /* Specified in setLongMessage */
+// export enum ClientErrorDetail {
+//   TryAgainLater  = 'Try again later. If persists, report problem to site adminstrator.',
+// }

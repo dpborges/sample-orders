@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { CreateContactEvent } from 'src/events/contact/commands';
 import { ContactOutbox } from 'src/outbox/entities/contact.outbox.entity';
-import { ContactCreatedEvent } from 'src/events/contact/domainChanges';
+import { ContactCreatedEvent, ContactUpdatedEvent } from 'src/events/contact/domainChanges';
+
 import { Subjects } from 'src/events/contact/domainChanges';
 // import { AggregrateService } from './aggregrate/aggregrate.service';
 
@@ -38,6 +39,27 @@ export class DomainChangeEventFactory {
     return serializedContactCreatedEvent;
   }
 
+
+  /**
+     * Returns a serialzied CreatedEvent payload 
+     * @param createContactEvent 
+     */
+  getUpdatedEventFor(updateContactEvent): string {
+    
+    /* destructure properties for create contact event */
+    const  { accountId, email, firstName, lastName } = updateContactEvent.message;
+    const  { sessionId, userId } = updateContactEvent.header;
+
+    /* use destructured properties to define what to include in contactCreatedEvent  */
+    const contactUpdatedEvent: ContactUpdatedEvent = { 
+      header:  { sessionId, userId },
+      message: { accountId, email, firstName, lastName  }
+    }
+    /* serialize event  */
+    const serializedContactUpdatedEvent: string = JSON.stringify(contactUpdatedEvent);
+
+    return serializedContactUpdatedEvent;
+  }
 
  /* generates the contactCreatedEvent and returns an outbox entity instance
      to the contact service to ultimately save it with the aggregate save transaction   */

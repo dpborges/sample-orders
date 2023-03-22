@@ -3,7 +3,7 @@ import { StandardErrorResponse } from "./error.response";
 /**
  * Base class used to generate Error Message to send back as an error response. 
  * To use it, define your own classification of errors by extending from this class
- * and overriding the setError Properities. This method will set the various 
+ * and overriding the setError Properties. This method will set the various 
  * error properties based on the error number.
  */ 
 export class BaseError {
@@ -31,9 +31,9 @@ export class BaseError {
     this.statusCode = code;
   }
 
-   /* Appends to message to provide more specific reason for the generic error code 
-      This is called first,followed by setLongMessage, so reading flows better.
-      Note that this method returns this, which allows you to chaing a the 
+   /* Appends to message property to provide more specific reason for the generic error 
+      code. This is called first,followed by setLongMessage, so reading flows better.
+      Note that this method returns this, which allows you to chain a the 
       setLongMessage() method. */
   setReason(reason: string) {
     this.message = `${this.message}; ${reason}`;

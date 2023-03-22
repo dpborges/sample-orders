@@ -12,6 +12,7 @@ import { OutboxStatus } from './outbox.status.enum';
 import { Subjects } from '../events/contact/domainChanges';
 import { DomainChangeEventPublisher } from './domainchange.event.publisher';
 import { SubjectAndPayload } from './types/subject.and.payload';
+import { UpdateContactEvent } from 'src/events/contact/commands';
 
 @Injectable()
 export class OutboxService {
@@ -88,6 +89,28 @@ export class OutboxService {
    });
       
    return contactCreatedEventOutboxInstance
+  }
+
+  /* generates the contactUpdatedEvent and return an outbox entity instance
+     to the contact service to ultimately save it with the aggregate save transaction   */
+  generateContactUpdatedInstances(
+      updateContactEvent: UpdateContactEvent,
+      serializedEventPayload:  string
+    ): ContactOutbox {
+    console.log(">>> Inside OutboxService.generateDomainCreatedInstances ")
+    // console.log("    contactCreatedEvent ",  createContactEvent);
+    const { userId }    = updateContactEvent.header;
+    const { accountId } = updateContactEvent.message;
+
+    const contactUpdatedEventOutboxInstance:ContactOutbox = this.contactOutboxRepository.create({
+      accountId, 
+      subject: Subjects.ContactCreated,
+      payload: serializedEventPayload,
+      userId,
+      status: OutboxStatus.unpublished
+   });
+      
+   return contactUpdatedEventOutboxInstance
   }
 
   /* helper function (used by generateContactCreatedInstances) to create and 

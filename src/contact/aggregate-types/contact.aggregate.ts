@@ -15,9 +15,12 @@ import { BusinessRule } from '../business-rules/business-rule.enum';
 // import { TransactionStatus } from './transaction-status.type-DELETE-ts'
 import { CreateContactEvent } from 'src/events/contact/commands';
 import { ContactCreatedEvent } from 'src/events/contact/domainChanges';
-import { contactAcctSourceSql } from '../dbqueries/contact.acct.source';
-import { contactAcctSql } from '../dbqueries/contact.acct';
+import { contactAcctSourceSql } from '../dbqueries';
+import { contactAcctSql } from '../dbqueries';
+import { getContactByAcctAndEmail } from '../dbqueries';
 import { genBeforeAndAfterImage } from '../../utils/gen.beforeAfter.image';
+import { logStart, logStop } from '../../utils/trace.log';
+const logTrace = true;
 
 // Class used to construct aggregate object with related entities from event payload/
 // This class also centralizes aggregate business rules in this one class.
@@ -72,6 +75,7 @@ export class ContactAggregate extends AggregateRoot {
     return this.aggregate;
   };
 
+  // To Be DELETED
   /* returns entire aggregate  */
   // async findById(id): Promise<any> {
   //   const contact = this.dataSource
@@ -82,14 +86,77 @@ export class ContactAggregate extends AggregateRoot {
   //   return contact;
   // };
 
+  /**
+   * Fetches aggregate entities by accountId, email
+   * @param accountId 
+   * @param email 
+   * @returns contactAggregateEntities
+   */
+  async getAggregateEntitiesBy(accountId: number, email: string): Promise<ContactAggregateEntities> {
+    const methodName = 'getAggregateEntitiesBy';
+    logTrace && logStart([methodName, 'accountId', 'email'], arguments)
+    // Initialize mandatory entities only below. Optional entities will be added dynamically
+    let contactAggregateEntities: ContactAggregateEntities = {
+      contact: null,
+      contactAcctRel: null
+    };
+    
+    // Define where clause using database syntax (not camelcase)
+    let selectCriteria = `account_id = ${accountId} and email = '${email}'`;
+    let whereClause = 'WHERE ' + selectCriteria;
+    
+    // get query that joins the 3 tables
+    let sqlStatement = getContactByAcctAndEmail(whereClause); /* defaults to joining 3 tables */
+
+    // Execute query
+    const contactArray = await this.dataSource.query(sqlStatement);
+    
+    // If no results, return the initialized contactAggregateEntities object 'as-is'
+    if (contactArray.length < 1) {
+      return contactAggregateEntities
+    }
+    let [ contactData ] = contactArray; /* destructure array */
+    contactData = camelize(contactData) /* convert to camel case */
+    
+    /* pull out major aggregate key(s) */
+    const { contactId } = contactData;  
+
+    /* pull out properties for each entity  */
+    const { version, firstName, lastName, mobilePhone } = contactData;        /*contact data */
+    const { sourceId, sourceType, sourceName } = contactData;                 /* source data */
+    const { acctRelId } = contactData;                                        /* acctRel data */
+    
+    // Construct the individual entities in the aggregate
+    /* contact */
+    const contact = { id: contactId, version, email, firstName, lastName, mobilePhone }
+    /* contact_acct_rel */
+    const contactAcctRel = { id: acctRelId, accountId, contactId }
+    /* optional contact_source; add only if exists */
+    const contactSource  = { id: sourceId, contactId,  sourceType, sourceName };
+
+    // Assign entities to AggregateEntities; omit optional entities that are null
+    contactAggregateEntities.contact = this.contactRepository.create(contact);
+    contactAggregateEntities.contactAcctRel = this.contactAcctRelRepository.create(contactAcctRel);
+    if (sourceId) {  /* optional contact_source; add only if exists */
+      contactAggregateEntities.contactSource = this.contactSourceRepository.create(contactSource);
+    }
+
+    /* returns only aggregate entities that exist; if not, the entity is omitted*/
+    logTrace && logStop(methodName, "contactAggregateEntities", contactAggregateEntities);
+    return contactAggregateEntities
+  }
   
   /**
    * Fetches and returns an object with the entities that make up the aggregate.
+   * Since an update request returns the hypermdia response uri as contact/id, this method 
+   * will be required retrieve the contact by id, unless  the hypermedia returns
+   * accountId and email in uri instead.. to be determined.
    * @param id 
    * @returns contactAggregateEntities
    */
   async getAggregateEntitiesById(id: number): Promise<ContactAggregateEntities> {
-
+    const methodName = 'getAggregateEntitiesById';
+    logTrace && logStart([methodName, 'id'], arguments)
     // Initialize mandatory entities only below. Optional entities will be added dynamically
     let contactAggregateEntities: ContactAggregateEntities = {
       contact: null,
@@ -144,6 +211,7 @@ export class ContactAggregate extends AggregateRoot {
     // const contactData = 
     console.log("CONTACT AGGREGATE ", JSON.stringify(contactAggregateEntities, null, 2));
 
+    logTrace && logStop(methodName, "contactAggregateEntities", contactAggregateEntities);
     /* returns only aggregate entities that exist; if not, the entity is omitted*/
     return contactAggregateEntities
   }
@@ -153,8 +221,6 @@ export class ContactAggregate extends AggregateRoot {
   // TBD
   loadPartialAggregate() {}
  
-  
-
   /* Layers on idempotent busines rules on top of aggregate returned from ContactAggregate.create method */
   async idempotentCreate(
     contactAggregateEntities: ContactAggregateEntities,
@@ -356,14 +422,17 @@ export class ContactAggregate extends AggregateRoot {
   //***************************************************************************** 
   // Helper Methods
   //***************************************************************************** 
-
   /**
-   * Applies properties in an updateObject to a targetObject
+   * Applies properties within an updateObject to a targetObject.
+   * This method can be called multiple times for each individual entity in the 
+   * AggregateEntities object.
    * @param updatesObject 
    * @param targetObject 
    * @returns updateObject
    */
   applyUpdatesToObject(updatesObject, targetObject) {
+    const methodName = 'applyUpdatesToObject'
+    logTrace && logStart([methodName,'updatesObject', 'targetObject'], arguments);
 
     /* Define function that returns array of common properties between the 2 objects */
     function getCommonPropertiesBetween(object1, object2) {
@@ -395,6 +464,7 @@ export class ContactAggregate extends AggregateRoot {
       return targetObject
     }
 
+    logStop(methodName,'updatedObject', updatedObject);
     return updatedObject;
   }
 

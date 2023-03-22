@@ -31,6 +31,10 @@ export class ClientError extends BaseError {
         this.setStatusCode(400);
         this.setMessage("Bad Request");
         break;
+      case 404:
+        this.setStatusCode(404);
+        this.setMessage("Not Found");
+        break;
       default:
     }
   }

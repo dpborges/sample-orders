@@ -33,6 +33,9 @@ import { ContactCreatedEvent } from './events/contact/domainChanges';
 import { UpdateEventStatusCmdPayload } from './outbox/events/commands';
 import { DomainChangeEventManager } from './outbox/domainchange.event.manager';
 import { ContactAggregate } from './contact/aggregate-types/contact.aggregate';
+import { UpdateContactEvent } from './events/contact/commands';
+import { ServerError } from './common/errors/server.error';
+import { ContactUpdatedResponse } from './contact/responses/contact.updated.response';
 import * as R from 'ramda';
 
 
@@ -61,22 +64,24 @@ export class AppController {
      
   } // end of test1
 
-  @Get('load')
-  async getAggregateEntitiesById(): Promise<ContactAggregateEntities> {
-    const contactId = 8;
-    const result = await this.contactAggregate.getAggregateEntitiesById(contactId);
-    console.log("CONTACT AGGREGATE ENTITIES ", result);
-    return result;
-  }
+  // To Be DELETED
+  // @Get('load')
+  // async getAggregateEntitiesById(): Promise<ContactAggregateEntities> {
+  //   const contactId = 8;
+  //   const result = await this.contactAggregate.getAggregateEntitiesById(contactId);
+  //   console.log("CONTACT AGGREGATE ENTITIES ", result);
+  //   return result;
+  // }
 
-  @Get('update')
-  async updateAggregateById(): Promise<ContactAggregateEntities> {
-    const contactId = 9;
-    const updateObject = { mobilePhone: 2120001111, sourceType: "application", sourceName: "contentmgr" };
-    const result: any = await this.contactService.updateAggregateById(contactId, updateObject)
-    console.log("CONTACT AGGREGATE ENTITIES ", result);
-    return result;
-  }
+  // To Be DELETED
+  // @Get('update')
+  // async updateAggregateById(): Promise<ContactAggregateEntities> {
+  //   const contactId = 9;
+  //   const updateObject = { mobilePhone: 2120001111, sourceType: "application", sourceName: "contentmgr" };
+  //   const result: any = await this.contactService.updateAggregateById(contactId, updateObject)
+  //   console.log("CONTACT AGGREGATE ENTITIES ", result);
+  //   return result;
+  // }
 
 
   //************************************************************** */
@@ -105,24 +110,48 @@ export class AppController {
   // Contact CUD Handlers
   //************************************************************** */
   
+  // Create Contact
   @ExecuteCommand(ContactCommand.createContact)
   async createContactCommandHandler(
-    @Payload() data: CreateContactEvent,
+    @Payload() payload: CreateContactEvent,
     @Ctx() context: NatsJetStreamContext
   ): Promise<any> {
-    const header = data.header;
-    const message = data.message;
+    const header = payload.header;
+    const message = payload.message;
     const subject = context.message.subject;
     console.log(`MS - Received subject ${subject} on Contact Microservice`);
-    console.log('MS - ....with data', data);
+    console.log('MS - ....with data', payload);
     console.log('MS - ....with header', header);
     console.log('MS - ....with message', message);
-    const cmdResult: any  =  await this.contactService.create(data)
+    const cmdResult: any  =  await this.contactService.create(payload)
 
     // Here you create Order and insert CreatedOrderEvent to the event database
     // as a single transaction. The publish flag will be false false
 
     // here you return the CreatedOrderEvent.
+    return cmdResult;
+  }
+
+  // Update Contact
+  @ExecuteCommand(ContactCommand.updateContact)
+  async updateContactCommandHandler(
+    @Payload() payload: UpdateContactEvent,
+    @Ctx() context: NatsJetStreamContext
+  ): Promise<ContactUpdatedResponse | ServerError> {
+    const header = payload.header;
+    const message = payload.message;
+    const subject = context.message.subject;
+    console.log(`MS - Received subject ${subject} on Contact Microservice`);
+    console.log('MS - ....with data', payload);
+    console.log('MS - ....with header', header);
+    console.log('MS - ....with message', message);
+    const cmdResult: any  =  await this.contactService.updateAggregate(payload)
+
+    // Here you create Order and insert CreatedOrderEvent to the event database
+    // as a single transaction. The publish flag will be false false
+
+    // here you return the CreatedOrderEvent.
+    // return "Completed Contact Update";
     return cmdResult;
   }
 
