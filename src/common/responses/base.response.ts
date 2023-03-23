@@ -35,6 +35,7 @@ interface DataChanges {
 
 /* Base Response  */
 class BaseResponse  {
+  protected statusCode: number;
   protected id?:      string | number;
   protected _links:   NamedLinks;   /* object with named relations */
   protected dataChanges?: DataChanges;
@@ -49,6 +50,11 @@ class BaseResponse  {
   setId(id) {
     this.id = id
   }
+
+  setStatusCode(code) {
+    this.statusCode = code;
+  }
+
   setNamedLinks(namedLinks) {
     this._links = namedLinks
   }

@@ -13,7 +13,7 @@ export interface CreateEntityResponse  {
 }
 
 /* Implementation of CreateEntityResponse */
-export class CreateContactResponse implements CreateEntityResponse {
+export class UpdateAggregateResponse implements CreateEntityResponse {
   id: string | number;
   link: Link;
 

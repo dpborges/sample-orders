@@ -5,12 +5,9 @@
 // THIS IS COPIED FROM CLIENT ERROR STANDARD TEXT AS A TEMPLATE TO USE FOR SERVER
 
 /* Specified in setReason */
-// export enum ClientErrorReasons {
-//   IncorrectSyntax  = 'Incorrect Syntax',
-//   UnexpectedResponse = 'Unexpected Response',
-//   TooLarge   = 'Size to large',
-//   InvalidRequest    = 'Request Invalid'
-// }
+export enum ServerErrorReasons {
+  databaseError  = 'Database Error',
+}
 
 // /* Specified in setLongMessage */
 // export enum ClientErrorDetail {

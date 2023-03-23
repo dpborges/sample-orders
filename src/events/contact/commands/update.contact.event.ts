@@ -1,6 +1,7 @@
 import { MessageHeader } from '../../common/message.header';
 
 export interface UpdateContactPayload {
+  id:            number;
   accountId:     number;
   email:         string;
   firstName?:    string;

@@ -1,4 +1,4 @@
-import { StandardErrorResponse } from "./error.response";
+import { StandardErrorResponse } from "./standard.error.response";
 
 /**
  * Base class used to generate Error Message to send back as an error response. 
@@ -23,6 +23,11 @@ export class BaseError {
     } 
   }
   
+  /**
+   * Provides generic message; Default values can be provided in error subclass for 
+   * given status code.
+   * @param msg 
+   */
   setMessage(msg: string) {
     this.message = msg;
   }
@@ -31,21 +36,29 @@ export class BaseError {
     this.statusCode = code;
   }
 
-   /* Appends to message property to provide more specific reason for the generic error 
-      code. This is called first,followed by setLongMessage, so reading flows better.
-      Note that this method returns this, which allows you to chain a the 
-      setLongMessage() method. */
+  /** Appends to message property to provide more specific reason for the generic error 
+   *  code. This is called first,followed by setLongMessage, so reading flows better.
+   *  Note that this method returns this, which allows you to chain a the 
+   *  setLongMessage() method. 
+   */
   setReason(reason: string) {
-    this.message = `${this.message}; ${reason}`;
+    this.message = `${this.message}: ${reason}`;
     return this;
   }
-
-  /* appends to message to provide an explanation, solution, or link of external 
-     documentation available. This is typically called after setReason */ 
+  
+  /**
+   * appends to message to provide an explanation, solution, or link of external 
+   * documentation available. This is typically called after setReason  
+   */
   setLongMessage(longMsg: string)  {
-    this.message = `${this.message}; ${longMsg}`;
+    this.message = `${this.message} - ${longMsg}`;
   }
 
+  /**
+   * Returns statusCode and message, where message is concatention of message, reason, 
+   * and longMessage.
+   * @returns 
+   */
   toString(): StandardErrorResponse {
     let errorResponse: StandardErrorResponse;
     if (this.statusCode) { errorResponse.statusCode = this.statusCode;  } 
@@ -53,7 +66,11 @@ export class BaseError {
     return errorResponse;
   }
 
-  /* this class is defined by the specific subtype (e. ClientError, ServerError) */
+  /**
+   * This sets error message based and error number; Should be implemented in 
+   * ClientError or ServerError subclass
+   * @param statusCode 
+   */
   setErrorProperties(statusCode: number) { };
  
 }

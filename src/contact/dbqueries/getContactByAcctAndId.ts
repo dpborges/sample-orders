@@ -1,6 +1,6 @@
 
 // Note DO NOT USE CAMELCASE
-export function getContactByAcctAndEmail (whereClause) {
+export function getContactByAcctAndId (whereClause) {
   let sqlstatment = 
   `SELECT contact.id as contact_id, version,  first_name, last_name, email, mobile_phone, 
     contact_acct_rel.id as acct_rel_id, contact_acct_rel.account_id as account_id,

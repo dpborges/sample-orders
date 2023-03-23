@@ -1,6 +1,6 @@
-import { StandardErrorResponse } from "./error.response";
-import { BaseError } from "./base.error";
-import { ClientErrorDetail } from "./client.error.standard.text";
+import { StandardErrorResponse } from "../standard.error.response";
+import { BaseError } from "../base.error";
+import { ClientErrorDetail } from "../client/client.error.reasons";
 
 /**
  * Generates Standard Server Error Message to send back as error response. The base 
@@ -24,8 +24,7 @@ export class ServerError extends BaseError {
     switch (statusCode) {
       case 500:
         this.setStatusCode(500);
-        this.setMessage("Server not responding");
-        this.setLongMessage(ClientErrorDetail.TryAgainLater);
+        this.setMessage("Server Issue");
         break;
       default:
     }

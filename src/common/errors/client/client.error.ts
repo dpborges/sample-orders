@@ -1,6 +1,6 @@
-import { StandardErrorResponse } from "./error.response";
-import { BaseError } from "./base.error";
-import { ClientErrorDetail } from "./client.error.standard.text";
+import { StandardErrorResponse } from "../standard.error.response";
+import { BaseError } from "../base.error";
+import { ClientErrorDetail } from "./client.error.reasons";
 
 /**
  * Generates Standard Client Error Message to send back as error response. The base 
@@ -33,7 +33,7 @@ export class ClientError extends BaseError {
         break;
       case 404:
         this.setStatusCode(404);
-        this.setMessage("Not Found");
+        this.setMessage("Resource Not Found");
         break;
       default:
     }

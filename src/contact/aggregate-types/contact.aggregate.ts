@@ -17,7 +17,7 @@ import { CreateContactEvent } from 'src/events/contact/commands';
 import { ContactCreatedEvent } from 'src/events/contact/domainChanges';
 import { contactAcctSourceSql } from '../dbqueries';
 import { contactAcctSql } from '../dbqueries';
-import { getContactByAcctAndEmail } from '../dbqueries';
+import { getContactByAcctAndId } from '../dbqueries';
 import { genBeforeAndAfterImage } from '../../utils/gen.beforeAfter.image';
 import { logStart, logStop } from '../../utils/trace.log';
 const logTrace = true;
@@ -92,9 +92,9 @@ export class ContactAggregate extends AggregateRoot {
    * @param email 
    * @returns contactAggregateEntities
    */
-  async getAggregateEntitiesBy(accountId: number, email: string): Promise<ContactAggregateEntities> {
+  async getAggregateEntitiesBy(accountId: number, id: number): Promise<ContactAggregateEntities> {
     const methodName = 'getAggregateEntitiesBy';
-    logTrace && logStart([methodName, 'accountId', 'email'], arguments)
+    logTrace && logStart([methodName, 'accountId', 'id'], arguments)
     // Initialize mandatory entities only below. Optional entities will be added dynamically
     let contactAggregateEntities: ContactAggregateEntities = {
       contact: null,
@@ -102,11 +102,11 @@ export class ContactAggregate extends AggregateRoot {
     };
     
     // Define where clause using database syntax (not camelcase)
-    let selectCriteria = `account_id = ${accountId} and email = '${email}'`;
+    let selectCriteria = `account_id = ${accountId} and contact.id = ${id}`;
     let whereClause = 'WHERE ' + selectCriteria;
     
     // get query that joins the 3 tables
-    let sqlStatement = getContactByAcctAndEmail(whereClause); /* defaults to joining 3 tables */
+    let sqlStatement = getContactByAcctAndId(whereClause); /* defaults to joining 3 tables */
 
     // Execute query
     const contactArray = await this.dataSource.query(sqlStatement);
@@ -122,7 +122,7 @@ export class ContactAggregate extends AggregateRoot {
     const { contactId } = contactData;  
 
     /* pull out properties for each entity  */
-    const { version, firstName, lastName, mobilePhone } = contactData;        /*contact data */
+    const { version, firstName, lastName, email, mobilePhone } = contactData;        /*contact data */
     const { sourceId, sourceType, sourceName } = contactData;                 /* source data */
     const { acctRelId } = contactData;                                        /* acctRel data */
     
@@ -223,10 +223,11 @@ export class ContactAggregate extends AggregateRoot {
  
   /* Layers on idempotent busines rules on top of aggregate returned from ContactAggregate.create method */
   async idempotentCreate(
-    contactAggregateEntities: ContactAggregateEntities,
-    generatedEvents: Array<ContactCreatedEvent>
+    contactAggregateEntities: ContactAggregateEntities
+    // generatedEvents: Array<ContactCreatedEvent>
   ): Promise<ContactAggregateEntities> {
-    console.log(">>>> Inside contactAggregate.save()")
+    const methodName = 'idempotentCreate';
+    logTrace && logStart([methodName, 'contactAggregateEntities'], arguments);
 
     /* pull out individual entities from aggregate */
     const { contact, contactAcctRel, contactSource } = contactAggregateEntities;
@@ -251,10 +252,12 @@ export class ContactAggregate extends AggregateRoot {
       contactAggregateEntities.contact = contact;
       contactAggregateEntities.contactSource = null; /* setting to null, to avoid saving again on save */
     }
-    console.log("    generated Event ", JSON.stringify(generatedEvents))
+    // console.log("    generated Event ", JSON.stringify(generatedEvents))
 
+    contactAggregateEntities = await this.contactSaveService.save(contactAggregateEntities);
     /* returns the aggregate root */
-    return await this.contactSaveService.save(contactAggregateEntities) ;
+    logTrace && logStop(methodName, 'contactAggregateEntities', contactAggregateEntities);
+    return contactAggregateEntities;
   }
  
  async runAsyncBusinessRule(businessRule, ruleInputs) {

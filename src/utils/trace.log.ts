@@ -24,7 +24,8 @@ export function logStart(argNames, args: IArguments) {
  * @param returnName
  * @param returnValue
  */
-export function logStop(funcName, returnName, returnValue) {
+export function logStop(funcName, returnName, returnValue) 
+{
   if (typeof returnValue === "object") {
     returnValue = JSON.stringify(returnValue, null, 2)
   }
@@ -35,5 +36,11 @@ export function logStop(funcName, returnName, returnValue) {
   console.log('------------------------------------------')
 }
 
-
+/* used when getting circular reference errors in input parm */
+export function logStartVal(methodName:string, valName: string, value: any) {
+  console.log('==========================================')
+  console.log('>>>> INSIDE', methodName)
+  console.log(`INPUT PARM: ${valName}`);
+  console.log(`      ${value}`)
+}
   

@@ -4,7 +4,7 @@
 
 import { BaseResponse } from '../../common/responses/base.response';
 
-export class ContactUpdatedResponse extends BaseResponse {
+export class CreateContactResponse extends BaseResponse {
 
   constructor(id) {
     super(id);

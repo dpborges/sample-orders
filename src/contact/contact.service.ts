@@ -1,16 +1,15 @@
-import { ContactUpdatedResponse } from './responses/contact.updated.response';
+import { UpdateContactResponse } from './responses/update.contact.response';
 import { ConfigModule } from '@nestjs/config';
 import { OutboxService } from './../outbox/outbox.service';
-import { CreateContactResponse } from './../common/responses/command.response';
+import { CreateContactResponse } from './responses/create.contact.response';
 import { ContactSaveService } from './contact.save.service';
 import { Contact } from './entities/contact.entity';
 import { Injectable } from '@nestjs/common';
 import { ContactAggregate } from './aggregate-types/contact.aggregate';
 import { ContactAggregateEntities } from './aggregate-types/contact.aggregate.type';
 import { CreateContactEvent } from 'src/events/contact/commands';
-import { CreateEntityResponse } from 'src/common/responses/command.response';
-import { ServerError } from '../common/errors/server.error';
-import { ClientErrorReasons } from '../common/errors/client.error.standard.text';
+import { CreateEntityResponse } from 'src/common/responses/command.response-Delete';
+import { ServerError, ServerErrorReasons, ClientErrorReasons } from '../common/errors/';
 import { ContactCreatedEvent } from '../events/contact/domainChanges';
 import { CustomNatsClient } from 'src/custom.nats.client.service';
 import { ContactOutbox } from '../outbox/entities/contact.outbox.entity';
@@ -21,7 +20,8 @@ import { genBeforeAndAfterImage } from '../utils/gen.beforeAfter.image';
 import { DataChanges } from '../common/responses/base.response';
 import { UpdateContactEvent } from '../events/contact/commands';
 import { logStart, logStop } from 'src/utils/trace.log';
-import { BaseError, ClientError } from 'src/common/errors';
+import { BaseError, ClientError } from '../common/errors';
+import { BaseResponse } from '../common/responses/base.response';
 const logTrace = true;
 
 @Injectable()
@@ -47,23 +47,25 @@ export class ContactService {
     }
   }
   
-  async updateAggregate(payload: UpdateContactEvent): Promise<ContactUpdatedResponse | BaseError> {
+  async updateAggregate(updateContactEvent: UpdateContactEvent): Promise<UpdateContactResponse | BaseError> {
     const methodName = 'updateAggregate';
     logTrace && logStart([methodName, 'payload'], arguments);
     
-    const { header, message } = payload;
+    const { header, message } = updateContactEvent;
     
-    // Pull out updateRequest from message by excluding accountId and email. 
-    const { accountId, email, ...rest }  = message;
-    let updateRequest = { ...rest }; 
+    // Destructure message to extract keys (for fetching aggregate) and update properties (for applying changes) .
+    const { id, accountId, ...updateProperties }  = message; 
+    let updateRequest = { ...updateProperties }; /* ONLY INCLUDE updateProperties in updateRequest */
 
     /* fetch aggregate entities */
-    const aggregateEntities: ContactAggregateEntities = await this.contactAggregate.getAggregateEntitiesBy(accountId, email);
+    const aggregateEntities: ContactAggregateEntities = await this.contactAggregate.getAggregateEntitiesBy(accountId, id);
 
-    /* if not foud return 404 */
+    /* if not found return 404 */
     if (!aggregateEntities.contact) {
       let clientError = new ClientError(404);
-      clientError.setLongMessage(`contact email ${email}; from '${methodName}'`)
+      clientError.setReason(ClientErrorReasons.KeysNotInDatabase);
+      clientError.setLongMessage(`id: ${id}`)
+  
       return clientError;
     }
 
@@ -75,7 +77,7 @@ export class ContactService {
     updatedAggregateEntities = this.contactAggregate.applyUpdates(updateRequest, aggregateEntities)
        
     /* handle requirement for publishing domain updated event  */
-    // this.prepareDomainUpdatedEvent(updateContactEvent, aggregate);
+    this.prepareDomainUpdatedEvent(updateContactEvent, updatedAggregateEntities);
     
     // save changes
     let savedAggregateEntities: ContactAggregateEntities;
@@ -84,18 +86,19 @@ export class ContactService {
     /* if save was NOT successful, return error response */
     if (!savedAggregateEntities.contact) {
       let serverError = new ServerError(500);
-      serverError.setLongMessage(`problem saving contact agggregate with email ${email} in ${methodName}`);
+      serverError.setMessage(ServerErrorReasons.databaseError)
+      serverError.setReason(`${methodName}: failed to update contact aggregate id:${id} `);
       return serverError;
     }
-    console.log("[FF]")
+    
     // create response object
     const { id: contactId } = savedAggregateEntities.contact;
     const dataChanges: DataChanges =  beforeAndAfterImage;
-    const contactUpdatedResponse: ContactUpdatedResponse = new ContactUpdatedResponse(contactId);
-    contactUpdatedResponse.setUpdateImages(beforeAndAfterImage);
+    const updateContactResponse: UpdateContactResponse = new UpdateContactResponse(contactId);
+    updateContactResponse.setUpdateImages(beforeAndAfterImage);
    
-    logTrace && logStop(methodName, "contactUpdatedResponse", contactUpdatedResponse);
-    return contactUpdatedResponse;
+    logTrace && logStop(methodName, "updateContactResponse", updateContactResponse);
+    return updateContactResponse;
   }
 
   // TO BE DETERMINED NEED TO DECIDE IF THIS IS NEEDED
@@ -148,12 +151,10 @@ export class ContactService {
   //   return await this.contactAggregate.getAggregateEntitiesById(id);
   // }
  
-
-
   // service used to create aggreate, then save it.
-  async create(createContactEvent: CreateContactEvent):  Promise<CreateEntityResponse | ServerError> {
-    console.log(">>>> Inside contactService.create method");
-    console.log(`    var createContactEvent: ${JSON.stringify(createContactEvent)}`);
+  async create(createContactEvent: CreateContactEvent):  Promise<CreateContactResponse | BaseError> {
+    const methodName = 'create';
+    logTrace && logStart([methodName, 'createContactEvent',createContactEvent ], arguments);
 
     const { sessionId, userId } = createContactEvent.header;
     const { accountId, email, firstName, lastName } = createContactEvent.message;
@@ -165,12 +166,15 @@ export class ContactService {
     /* handle requirement for publishing Created event  */
     this.prepareDomainCreatedEvent(createContactEvent, aggregate);
 
-    /* Save the aggregate members, the generated event(s) to outbox, and return aggregate root */
-    let aggregateEntities: ContactAggregateEntities = await this.contactAggregate.idempotentCreate(aggregate, this.generatedEvents);
+    /* Save the aggregate members, and return aggregate entities */
+    let aggregateEntities: ContactAggregateEntities = await this.contactAggregate.idempotentCreate(aggregate);
 
-    /* if save was NOT successful, return error response */
+    // /* if save was NOT successful, return error response */
     if (!aggregateEntities.contact) {
-      return new ServerError(500);
+      let createError = new ServerError(500);
+      createError.setMessage(ServerErrorReasons.databaseError);
+      createError.setReason(`failed to create contact with email:${email} `);
+      return createError;
     }
     
     /* Sends command to outbox to publish unpublished events in outbox for a given account */
@@ -178,9 +182,17 @@ export class ContactService {
 
     /* create response object using aggregateRoot.id */
     const { contact } = aggregateEntities;
-    let createEntityResponse: CreateContactResponse = new CreateContactResponse(contact.id);
 
-    return createEntityResponse;
+    if (!contact) {
+      const serverError = new ServerError(500);
+      serverError.setMessage('Could not create response object')
+      return serverError;
+    } 
+
+    let createContactResponse: CreateContactResponse = new CreateContactResponse(contact.id);
+
+    logTrace && logStop(methodName, 'createContactResponse', createContactResponse);
+    return createContactResponse;
   }
 
   /**
@@ -190,22 +202,29 @@ export class ContactService {
    * @param aggregate 
    */
   async prepareDomainCreatedEvent(
-      createContactEvent: CreateContactEvent, 
-      aggregate: ContactAggregateEntities) 
+    createContactEvent: CreateContactEvent, 
+    aggregate: ContactAggregateEntities) 
   {
+    const methodName = 'prepareDomainCreatedEvent';
+    logTrace && logStart([methodName, 'createContactEvent','aggregate'], arguments);
     /* If flag is disabled to publish domain change events, return */
     if (!this.domainChangeEventsEnabled) {  
       return;  
     } 
+     /* extract version from aggregate to pass down to include in domainCreated event */
+     const contact = aggregate.contact;
+     const version: number = contact.version;
 
     /* create serialized contactCreatedEvent */
-    const serializedContactCreatedEvent = this.domainChangeEventFactory.getCreatedEventFor(createContactEvent);
+    const serializedContactCreatedEvent = this.domainChangeEventFactory.genCreatedEventFor(createContactEvent, version);
   
     /* create Outbox Instance of contactCreatedEvent, from createContactEvent */
     let contactOutboxInstance: ContactOutbox = await this.outboxService.generateContactCreatedInstances(
           createContactEvent, 
           serializedContactCreatedEvent
         );
+
+    logTrace && logStop(methodName, 'contactOutboxInstance',contactOutboxInstance);
     /* append instance to the aggregate  */
     aggregate.contactOutbox = contactOutboxInstance;
   }
@@ -220,13 +239,19 @@ export class ContactService {
     updateContactEvent: UpdateContactEvent, 
     aggregate: ContactAggregateEntities) 
   {
+    const methodName = 'prepareDomainUpdatedEvent';
+    logTrace && logStart([methodName, 'updateContactEvent','aggregate'], arguments);
     /* If flag is disabled to publish domain updated events, return */
     if (!this.domainChangeEventsEnabled) {  
       return;  
     } 
 
+    /* extract version from aggregate to pass down to include in updatedConsumerEvent */
+    const contact = aggregate.contact;
+    const version: number = contact.version;
+
     /* create serialized contactCreatedEvent */
-    const serializedContactUpdatedEvent = this.domainChangeEventFactory.getCreatedEventFor(updateContactEvent);
+    const serializedContactUpdatedEvent = this.domainChangeEventFactory.genUpdatedEventFor(updateContactEvent, version);
 
     /* create Outbox Instance of contactCreatedEvent, from createContactEvent */
     let contactOutboxInstance: ContactOutbox = await this.outboxService.generateContactUpdatedInstances(
@@ -234,6 +259,7 @@ export class ContactService {
           serializedContactUpdatedEvent
         );
     /* append instance to the aggregate  */
+    logTrace && logStop(methodName, 'contactOutboxInstance',contactOutboxInstance);
     aggregate.contactOutbox = contactOutboxInstance;
   }
 

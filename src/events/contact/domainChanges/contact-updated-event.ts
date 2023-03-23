@@ -4,10 +4,13 @@
 import { MessageHeader } from "src/events/common/message.header";
 
 export interface ContactUpdatedPayload {
+  id:           number;
+  version:      number;
   accountId:    number;
-  email:        string;
+  email?:       string;
   firstName?:   string;
   lastName?:    string;
+  mobilePhone?: string;
 }
 
 export interface ContactUpdatedEvent {

@@ -4,8 +4,8 @@ import { ContactCreatedEvent } from '../events/contact/domainChanges/contact-cre
 import { Repository } from 'typeorm';
 import { Injectable, Inject } from '@nestjs/common';
 import { CreateContactEvent } from '../events/contact/commands/create-contact-event';
-import { ServerError } from '../common/errors/server.error';
-import { ClientErrorReasons } from '../common/errors/client.error.standard.text';
+import { ServerError } from '../common/errors/server/server.error';
+import { ClientErrorReasons } from '../common/errors/client/client.error.reasons';
 // import { PublishUnpublishedEventsCmdPayload } from '../events/outbox/commands';
 import { RepoToken } from '../db-providers/repo.token.enum';
 import { ContactOutbox } from './entities/contact.outbox.entity';

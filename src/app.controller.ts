@@ -1,3 +1,5 @@
+import { BaseError } from './common/errors/base.error';
+import { CreateContactResponse } from './contact/responses/create.contact.response';
 import { genBeforeAndAfterImage } from 'src/utils/gen.beforeAfter.image';
 import { ContactAggregateEntities } from './contact/aggregate-types/contact.aggregate.type';
 // import { EventStatusUpdater } from './outbox/event.status.updater';
@@ -34,10 +36,14 @@ import { UpdateEventStatusCmdPayload } from './outbox/events/commands';
 import { DomainChangeEventManager } from './outbox/domainchange.event.manager';
 import { ContactAggregate } from './contact/aggregate-types/contact.aggregate';
 import { UpdateContactEvent } from './events/contact/commands';
-import { ServerError } from './common/errors/server.error';
-import { ContactUpdatedResponse } from './contact/responses/contact.updated.response';
+import { ServerError } from './common/errors/server/server.error';
+import { UpdateContactResponse } from './contact/responses/update.contact.response';
+import { ContactUpdatedEvent } from './events/contact/domainChanges';
+import { logStart, logStop, logStartVal } from './utils/trace.log';
+import { ClientErrorReasons, ClientError } from './common/errors';
 import * as R from 'ramda';
 
+const logTrace = true;
 
 @UseFilters(new ExceptionFilter())
 @Controller()
@@ -60,7 +66,10 @@ export class AppController {
   @Get('test1')
   test1(): any { 
 
-    console.log(genBeforeAndAfterImage)
+    const clientError = new ClientError(404);
+    clientError.setReason(ClientErrorReasons.KeysNotInDatabase);
+    clientError.setLongMessage("check id")
+    return clientError;
      
   } // end of test1
 
@@ -109,13 +118,12 @@ export class AppController {
   //************************************************************** */
   // Contact CUD Handlers
   //************************************************************** */
-  
   // Create Contact
   @ExecuteCommand(ContactCommand.createContact)
   async createContactCommandHandler(
     @Payload() payload: CreateContactEvent,
     @Ctx() context: NatsJetStreamContext
-  ): Promise<any> {
+  ): Promise<CreateContactResponse | BaseError> {
     const header = payload.header;
     const message = payload.message;
     const subject = context.message.subject;
@@ -123,12 +131,8 @@ export class AppController {
     console.log('MS - ....with data', payload);
     console.log('MS - ....with header', header);
     console.log('MS - ....with message', message);
-    const cmdResult: any  =  await this.contactService.create(payload)
-
-    // Here you create Order and insert CreatedOrderEvent to the event database
-    // as a single transaction. The publish flag will be false false
-
-    // here you return the CreatedOrderEvent.
+    let cmdResult: CreateContactResponse | BaseError;
+    cmdResult =  await this.contactService.create(payload)
     return cmdResult;
   }
 
@@ -137,7 +141,7 @@ export class AppController {
   async updateContactCommandHandler(
     @Payload() payload: UpdateContactEvent,
     @Ctx() context: NatsJetStreamContext
-  ): Promise<ContactUpdatedResponse | ServerError> {
+  ): Promise<UpdateContactResponse | ServerError> {
     const header = payload.header;
     const message = payload.message;
     const subject = context.message.subject;
@@ -146,7 +150,6 @@ export class AppController {
     console.log('MS - ....with header', header);
     console.log('MS - ....with message', message);
     const cmdResult: any  =  await this.contactService.updateAggregate(payload)
-
     // Here you create Order and insert CreatedOrderEvent to the event database
     // as a single transaction. The publish flag will be false false
 
@@ -159,7 +162,6 @@ export class AppController {
   //************************************************************** */
   // Outbox command handlers 
   //************************************************************** */
-  
   /**
    * Publishes unpublished events in the outbox to the ESB for a given accountId. 
    * Since it a system command and not user driven event, no need to extract header 
@@ -196,21 +198,26 @@ export class AppController {
   }
 
   //************************************************************** */
-  // Sample Event Consumer for ContactCreated 
+  // Sample Event Listeners for Domain Changes
   //************************************************************** */
-  // Listens for event published on Nats
-  // IMPORTANT: Listeners that are updating downstream data stores should be 
-  // version their entities to ensure CUD events are processed in proper order
+  // IMPORTANT: Listeners that are updating downstream data stores should be checking 
+  // version sequence for their entities to ensure CUD events are processed in proper order.
   // SEE UDEMY LESSON 42 and refer to link below on Typeorm optimistic concurrency control
   // https://github.com/typeorm/typeorm/issues/3608
   // @EventPattern('order.created')
+
+  // Mock Listener for ContactCreated Event and updates event status in outbox
   @ListenForEvent(Subjects.ContactCreated)
   public async contactCreatedHandler(
     @Ctx()  context: NatsJetStreamContext,
-    @Payload() data: ContactCreatedEvent
-  ) {
-    const { outboxId } = data.header;
-    const { accountId, email, firstName, lastName } = data.message;
+    @Payload() contactCreatedEvent: ContactCreatedEvent) 
+  {
+    const methodName = 'contactCreatedHandler';
+    logTrace && logStartVal(methodName, 'contactCreatedEvent', JSON.stringify(contactCreatedEvent));
+   
+    const { header, message } = contactCreatedEvent;
+    const { outboxId } = header;
+    const { accountId, email, firstName, lastName } = message;
     
     /* Update event status to pending via service (request/reply) */
     await this.appService.updateEventStatus(outboxId, OutboxStatus.pending)
@@ -226,16 +233,43 @@ export class AppController {
       context.message.ack();  
     }
     
-    /* update status to published in outbox  */
-    console.log(`MS - ContactCreatedEvent Listener received event subject: ${context.message.subject} data: ${data}`);
-
+    logTrace && logStop(methodName, 'subject',  `${context.message.subject} processed`);
   }
 
+ //  Mock Listener for ContactUpdated Event and updates event status in outbox
+  @ListenForEvent(Subjects.ContactUpdated)
+  public async contactUpdatedHandler(
+    @Ctx()  context: NatsJetStreamContext,
+    @Payload() contactedUpdatedEvent: ContactUpdatedEvent) 
+  {
+    const methodName = 'contactUpdatedHandler';
+    logTrace && logStartVal(methodName, 'contactedUpdatedEvent',JSON.stringify(contactedUpdatedEvent));
+
+    const {header, message } = contactedUpdatedEvent;
+    const { outboxId } = header;
+    const { accountId, email, firstName, lastName } = message;
+    
+    /* Update event status to pending via service (request/reply) */
+    await this.appService.updateEventStatus(outboxId, OutboxStatus.pending)
+
+    /* Handle event here  */
+    const successfullyProcessed = () => true;
+
+    if (successfullyProcessed) {
+      /* Update event status to processed  */
+      await this.appService.updateEventStatus(outboxId, OutboxStatus.processed)
+
+      /* acknowledge message */
+      context.message.ack();  
+    }
+
+    logTrace && logStop(methodName, 'subject',  `${context.message.subject} processed`);
+  }
   
 
   
   //************************************************************** */
-  // END OF Sample Event Consumer for ContactCreated 
+  // END OF Sample Listeners for Domain Changes
   //************************************************************** */
 
   //Event Listeners
