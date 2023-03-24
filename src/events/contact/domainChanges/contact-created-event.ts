@@ -4,6 +4,7 @@
 import { MessageHeader } from "src/events/common/message.header";
 
 export interface ContactCreatedPayload {
+  id?:          number;
   accountId:    number;
   version?:     number;    /* make optional as its not needed in the contactCreate event */
   email:        string;

@@ -47,7 +47,7 @@ export class ContactAggregate extends AggregateRoot {
  
   /* Constructs aggregate from parts from the create <domain> event object. If properties for
      optional relations are not provided, do not add to aggregateEntities object.  */
-  async create(createContactEvent: CreateContactEvent): Promise<ContactAggregateEntities> {
+  async createAggregate(createContactEvent: CreateContactEvent): Promise<ContactAggregateEntities> {
     /* destructure Dto to extract aggregate entities */
     const { email, accountId, firstName, lastName, mobilePhone } = createContactEvent.message;
     const { sourceType, sourceName } = createContactEvent.message;
@@ -223,11 +223,10 @@ export class ContactAggregate extends AggregateRoot {
  
   /* Layers on idempotent busines rules on top of aggregate returned from ContactAggregate.create method */
   async idempotentCreate(
-    contactAggregateEntities: ContactAggregateEntities
-    // generatedEvents: Array<ContactCreatedEvent>
+    contactAggregateEntities: ContactAggregateEntities,
   ): Promise<ContactAggregateEntities> {
     const methodName = 'idempotentCreate';
-    logTrace && logStart([methodName, 'contactAggregateEntities'], arguments);
+    logTrace && logStart([methodName, 'contactAggregateEntities','aggregateId'], arguments);
 
     /* pull out individual entities from aggregate */
     const { contact, contactAcctRel, contactSource } = contactAggregateEntities;
@@ -237,24 +236,33 @@ export class ContactAggregate extends AggregateRoot {
     const ruleResult: any = await this.runAsyncBusinessRule(BusinessRule.contactExistInAcctCheck, ruleInputs);
     const { contactExists, registeredInAcct, contactInstance } = ruleResult;
     
-    /* if contact already exists in provided account, return the existing contact instance */
-    if (contactExists && registeredInAcct) {  /* If exists, no need to call save; Just return existing aggregate root */
-      return contactInstance; 
+    /* if contact already exists add the id from existing contactInstance */
+    if (contactExists) {  /* If exists, no need to call save; Just return existing aggregate root */
+      contactAggregateEntities.contact.id = contactInstance.id;
+      logTrace && logStop(methodName, 'contactAggregateEntities', contactAggregateEntities);
+      return contactAggregateEntities; 
     } 
+
+    if (!registeredInAcct)  {
+      console.log(`WARNING: contact id:${contact.id} not registered in contactAcctRel table`)
+    }
+    
     /* if contact already exists but is not registered in provided account, 
        add the contactAcctRel to the aggregate, and remove the other entities except aggreate root*/
-    if (contactExists && !registeredInAcct) {  /* If contact exists but registered in account, register in contactAcctRel table */
-      contactAggregateEntities.contactAcctRel = this.contactAcctRelRepository.create({
-        accountId: contactAcctRel.accountId, contactId: contactInstance.id
-      })
-      /* add the contact Id to contact entity to force a save vs create */
-      contact.id = contactInstance.id;
-      contactAggregateEntities.contact = contact;
-      contactAggregateEntities.contactSource = null; /* setting to null, to avoid saving again on save */
-    }
+    // if (contactExists && !registeredInAcct) {  /* If contact exists but registered in account, register in contactAcctRel table */
+    //   contactAggregateEntities.contact.id = contactInstance.id;
+    //   contactAggregateEntities.contactAcctRel = this.contactAcctRelRepository.create({
+    //     accountId: contactAcctRel.accountId, contactId: contactInstance.id
+    //   })
+    //   /* add the contact Id to contact entity to force a save vs create */
+    //   contact.id = contactInstance.id;
+    //   contactAggregateEntities.contact = contact;
+    //   contactAggregateEntities.contactSource = null; /* setting to null, to avoid saving again on save */
+    // }
     // console.log("    generated Event ", JSON.stringify(generatedEvents))
 
     contactAggregateEntities = await this.contactSaveService.save(contactAggregateEntities);
+
     /* returns the aggregate root */
     logTrace && logStop(methodName, 'contactAggregateEntities', contactAggregateEntities);
     return contactAggregateEntities;

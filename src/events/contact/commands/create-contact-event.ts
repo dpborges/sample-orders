@@ -1,7 +1,8 @@
 import { MessageHeader } from '../../common/message.header';
 
 export interface CreateContactPayload {
-  accountId:    number;
+  // id:           number;  // keep id as placeholder to set it after creating aggregate 
+  accountId:    number;  //      so we can set in createdEvent so downstream services can consume */
   email:        string;
   firstName:    string;
   lastName:     string;

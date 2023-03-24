@@ -41,7 +41,7 @@ import { DomainChangeEventManager } from './outbox/domainchange.event.manager';
       OutboxService,
       DomainChangeEventFactory,
       DomainChangeEventPublisher,
-      DomainChangeEventManager,
+      DomainChangeEventManager
   ],
 })
 export class AppModule {}

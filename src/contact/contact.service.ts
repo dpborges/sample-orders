@@ -1,13 +1,15 @@
+import { Repository, DataSource } from 'typeorm';
+import { RepoToken } from '../db-providers/repo.token.enum';
 import { UpdateContactResponse } from './responses/update.contact.response';
 import { ConfigModule } from '@nestjs/config';
 import { OutboxService } from './../outbox/outbox.service';
 import { CreateContactResponse } from './responses/create.contact.response';
 import { ContactSaveService } from './contact.save.service';
 import { Contact } from './entities/contact.entity';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { ContactAggregate } from './aggregate-types/contact.aggregate';
 import { ContactAggregateEntities } from './aggregate-types/contact.aggregate.type';
-import { CreateContactEvent } from 'src/events/contact/commands';
+import { CreateContactEvent } from '../events/contact/commands';
 import { CreateEntityResponse } from 'src/common/responses/command.response-Delete';
 import { ServerError, ServerErrorReasons, ClientErrorReasons } from '../common/errors/';
 import { ContactCreatedEvent } from '../events/contact/domainChanges';
@@ -38,7 +40,8 @@ export class ContactService {
     private outboxService: OutboxService,
     private domainChangeEventFactory: DomainChangeEventFactory,
     private domainChangeEventManager: DomainChangeEventManager, 
-    private contactSaveService: ContactSaveService
+    private contactSaveService: ContactSaveService,
+    @Inject(RepoToken.DATA_SOURCE) private dataSource: DataSource
     // @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
   ) {
     /* set domainChangeEventsEnabled flag */
@@ -159,36 +162,44 @@ export class ContactService {
     const { sessionId, userId } = createContactEvent.header;
     const { accountId, email, firstName, lastName } = createContactEvent.message;
 
-    /* create the aggregate */
-    const aggregate: ContactAggregateEntities = await this.contactAggregate.create(createContactEvent);
+    /* reserve next outbox sequence id to use when creating aggregate instance */
+    // const nextSeqId = await this.getNextOutboxSequence();
+
+    /* create aggregate instance */
+    const aggregate: ContactAggregateEntities = await this.contactAggregate.createAggregate(createContactEvent);
     console.log("This is returned contact aggregate ", aggregate);
-
-    /* handle requirement for publishing Created event  */
-    this.prepareDomainCreatedEvent(createContactEvent, aggregate);
-
-    /* Save the aggregate members, and return aggregate entities */
+        
+    /* Create aggregate (WITHOUT outbox entity) and return aggregate entities */
     let aggregateEntities: ContactAggregateEntities = await this.contactAggregate.idempotentCreate(aggregate);
+   
+    /* if save was NOT successful, return error response */
+    if (!aggregateEntities.contact) { return this.createAggregateError(email);  }
+    
+    /* pull out contactId and version, which is needed to generate Created Event  */
+    const contactId = aggregate.contact.id;
+    const version   = aggregate.contact.version;
 
-    // /* if save was NOT successful, return error response */
-    if (!aggregateEntities.contact) {
-      let createError = new ServerError(500);
-      createError.setMessage(ServerErrorReasons.databaseError);
-      createError.setReason(`failed to create contact with email:${email} `);
-      return createError;
+    /* strip down aggregateEntities to aggregate root, to repeat save WITH outbox. */
+    const aggregateRoot: ContactAggregateEntities = { 
+      contact: aggregateEntities.contact,
+      contactAcctRel: null
     }
+
+    /* this method will add the outbox entity to the minimized aggregateRoot */ 
+    this.prepareDomainCreatedEvent(createContactEvent, aggregateRoot);
+
+    //  /* run save aggregate again (WITH outbox entity) and return aggregate entities */
+    //  let aggregateEntities: ContactAggregateEntities = await this.contactAggregate.idempotentCreate(aggregateRoot, nextSeqId);
+    //  /* if save was NOT successful, return error response */
+    //  if (!aggregateEntities.contact) { 
+    //   console.log(`WARNING: `)
+    // }
     
     /* Sends command to outbox to publish unpublished events in outbox for a given account */
     const cmdResult: any = await this.domainChangeEventManager.triggerOutboxForAccount(accountId)
 
     /* create response object using aggregateRoot.id */
     const { contact } = aggregateEntities;
-
-    if (!contact) {
-      const serverError = new ServerError(500);
-      serverError.setMessage('Could not create response object')
-      return serverError;
-    } 
-
     let createContactResponse: CreateContactResponse = new CreateContactResponse(contact.id);
 
     logTrace && logStop(methodName, 'createContactResponse', createContactResponse);
@@ -203,7 +214,7 @@ export class ContactService {
    */
   async prepareDomainCreatedEvent(
     createContactEvent: CreateContactEvent, 
-    aggregate: ContactAggregateEntities) 
+    aggregate: ContactAggregateEntities)
   {
     const methodName = 'prepareDomainCreatedEvent';
     logTrace && logStart([methodName, 'createContactEvent','aggregate'], arguments);
@@ -211,12 +222,14 @@ export class ContactService {
     if (!this.domainChangeEventsEnabled) {  
       return;  
     } 
-     /* extract version from aggregate to pass down to include in domainCreated event */
-     const contact = aggregate.contact;
-     const version: number = contact.version;
+    /* extract version from aggregate to pass down to include in domainCreated event */
+    const contact = aggregate.contact;
+    const version: number = contact.version;
 
     /* create serialized contactCreatedEvent */
-    const serializedContactCreatedEvent = this.domainChangeEventFactory.genCreatedEventFor(createContactEvent, version);
+    const serializedContactCreatedEvent = this.domainChangeEventFactory.genCreatedEventFor(
+      createContactEvent, version
+    );
   
     /* create Outbox Instance of contactCreatedEvent, from createContactEvent */
     let contactOutboxInstance: ContactOutbox = await this.outboxService.generateContactCreatedInstances(
@@ -266,5 +279,21 @@ export class ContactService {
   // *****************************************************************
   // Helper methods
   // *****************************************************************
+
+  async getNextOutboxSequence() {
+     // get query that joins the 3 tables
+     let sqlStatement = "SELECT NEXTVAL('contact_id_seq')";
+     const sqlResult = await this.dataSource.query(sqlStatement);
+     const nextSeqNum = sqlResult[0].nextval;
+     return nextSeqNum;
+  }
+
+  createAggregateError(email) {
+    let createError = new ServerError(500);
+    createError.setMessage(ServerErrorReasons.databaseError);
+    createError.setReason(`failed to create contact with email:${email} `);
+    return createError;
+  }
+  
 
 }
