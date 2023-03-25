@@ -6,6 +6,7 @@ import { CreateContactTransaction } from './../transactions';
 import { ContactAggregate } from '../types'
 import { DomainChangeEventFactory } from '../services/domain.change.event.factory';
 import { Injectable, Inject } from '@nestjs/common';
+import { process } from './create.contact.saga.process';
 import { logStart, logStop } from '../../utils/trace.log';
 
 const logTrace = true;
@@ -13,26 +14,6 @@ const logTrace = true;
 @Injectable()
 export class CreateContactSaga {
 
-  private domainChangeEventsEnabled: boolean = false;
-
-  private process = {
-    step1: { seq: 0, name: 'saveAggregate',         success: false },
-    step2: { seq: 1, name: 'generateCreatedEvent',  success: false },
-    step3: { seq: 2, name: 'createdOutboxInstance', success: false },
-    step4: { seq: 3, name: 'saveOutbox',            success: false }
-  }
-  private lastStepProcessed = 'None';
-  
-  //Rollback status
-  private rollBackTriggered = false;
-  private rollBackSuccess   = true;
-
-  // Intermediate Results
-  private serializedCreatedEvent: string;
-  private contactOutboxInstance: ContactOutbox;
-  // Final Result
-  private aggregate: ContactAggregate = null;
-  
   constructor(
     private createContactTransaction: CreateContactTransaction,
     private domainChangeEventFactory: DomainChangeEventFactory,
@@ -55,29 +36,41 @@ export class CreateContactSaga {
   }
  
   //*************************************************************** */
-  // Create Contact Saga Orchestration
+  // Saga Orchestration Steps
   //*************************************************************** */
   async execute(
     contactAggregate: ContactAggregate,
     createContactEvent: CreateContactEvent
     ): Promise<any> {
 
+    // Initialize process
+    let createContactProcess = { ...process }; /* clone process */
+
     // Process Saga 
     // Step 1: Save Aggregate
-    await this.saveAggregate(contactAggregate);
+    const savedAggregate = await this.saveAggregate(contactAggregate);
+    if (savedAggregate.contact.id) {   /* checks if id has been appended after update */
+      createContactProcess = this.updateProcessStatus(createContactProcess, 'step1', true)
+    }
+    
    
     // Step 2: Generate Created Event 
-    await this.generateCreatedEvent(createContactEvent)
+    // await this.generateCreatedEvent(createContactEvent)
 
     // Step3: Create Outbox Instance
-    await this.createdOutboxInstance(createContactEvent, this.aggregate)
+    // await this.createdOutboxInstance(createContactEvent, this.aggregate)
 
     // Step4: Save Outbox 
-    await this.saveOutbox(this.contactOutboxInstance)
+    // await this.saveOutbox(this.contactOutboxInstance)
 
-    // Call finalize
-    const finalResult: any = await this.finalize()
-    return finalResult;
+    // Call finalize, which returns 
+    const sagaResult = this.getSagaResult(createContactProcess);
+    console.log('PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP')
+    console.log("SAGA RESULT ",JSON.stringify(createContactProcess,null,2))
+    console.log('PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP');
+    // return finalResult;
+
+    return savedAggregate;
   }
 
   //*************************************************************** */
@@ -85,95 +78,96 @@ export class CreateContactSaga {
   //*************************************************************** */
   
   //Step 1: Save Aggregate 
-  async saveAggregate(aggregate) {
+  async saveAggregate(aggregate: ContactAggregate) {
+    const methodName = 'saveAggregate'
+    logTrace && logStart([methodName, 'saveAggregate'], arguments)
     /* save aggregate */
-    this.aggregate = await this.createContactTransaction.create(aggregate);
-    /* update step success status only when true (as success is false by default). 
-    Call setStepStatus will also set lastStepProcessed  */
-    if (aggregate.contact) { this.setStepStatus('step1', true) };
+    const savedAggregate = await this.createContactTransaction.create(aggregate);
+    logTrace && logStop(methodName, 'saveAggregate', savedAggregate)
+    return savedAggregate;
   }
 
   // Step 2: Generate Created event
-  generateCreatedEvent(createContactEvent) {
-    /* check previous step status and sets lastStepProcess */
-    const previousStepSuccessful = this.getStepStatus('step1')
-    if (!previousStepSuccessful) {
-      return;  
-    } else {
-      /* extract version from aggregate to pass down to include in domainCreated event */
-      const contact = this.aggregate.contact;
-      const version: number = contact.version;
+  // generateCreatedEvent(createContactEvent) {
+  //   /* check previous step status and sets lastStepProcess */
+  //   const previousStepSuccessful = this.getStepStatus('step1')
+  //   if (!previousStepSuccessful) {
+  //     return;  
+  //   } else {
+  //     /* extract version from aggregate to pass down to include in domainCreated event */
+  //     const contact = this.aggregate.contact;
+  //     const version: number = contact.version;
 
-      /* create serialized contactCreatedEvent */
-      this.serializedCreatedEvent = this.domainChangeEventFactory.genCreatedEventFor(
-        createContactEvent, version
-      );
+  //     /* create serialized contactCreatedEvent */
+  //     this.serializedCreatedEvent = this.domainChangeEventFactory.genCreatedEventFor(
+  //       createContactEvent, version
+  //     );
 
-      /* update step success status only when true (as sucess is false by default). 
-        This will also set lastStepProcessed  */
-      this.setStepStatus('step2', true);
-    }
-  }
+  //     /* update step success status only when true (as sucess is false by default). 
+  //       This will also set lastStepProcessed  */
+  //     this.setStepStatus('step2', true);
+  //   }
+  // }
 
   //Step3:  Create Outbox Instance
-  async createdOutboxInstance(
-    createContactEvent: CreateContactEvent, 
-    aggregate: ContactAggregate)
-  {
-    const methodName = 'createdOutboxInstance';
-    logTrace && logStart([methodName, 'createContactEvent','aggregate'], arguments);
+  // async createdOutboxInstance(
+  //   createContactEvent: CreateContactEvent, 
+  //   aggregate: ContactAggregate)
+  // {
+  //   const methodName = 'createdOutboxInstance';
+  //   logTrace && logStart([methodName, 'createContactEvent','aggregate'], arguments);
     
-    /* if previous step was not successful, return */
-    const previousStepSuccessful = this.getStepStatus('step2')
-    if (!previousStepSuccessful) { return;  } 
+  //   /* if previous step was not successful, return */
+  //   const previousStepSuccessful = this.getStepStatus('step2')
+  //   if (!previousStepSuccessful) { return;  } 
 
-    /* If flag is disabled to publish domain change events, return */
-    if (!this.domainChangeEventsEnabled) {  
-      return;  
-    } 
-    /* extract version from aggregate to pass down to include in domainCreated event */
-    const contact = aggregate.contact;
-    const version: number = contact.version;
+  //   /* If flag is disabled to publish domain change events, return */
+  //   if (!this.domainChangeEventsEnabled) {  
+  //     return;  
+  //   } 
+  //   /* extract version from aggregate to pass down to include in domainCreated event */
+  //   const contact = aggregate.contact;
+  //   const version: number = contact.version;
 
-    /* create serialized contactCreatedEvent */
-    const serializedContactCreatedEvent = this.domainChangeEventFactory.genCreatedEventFor(
-      createContactEvent, version
-    );
+  //   /* create serialized contactCreatedEvent */
+  //   const serializedContactCreatedEvent = this.domainChangeEventFactory.genCreatedEventFor(
+  //     createContactEvent, version
+  //   );
   
-    /* create Outbox Instance of contactCreatedEvent, from createContactEvent */
-    this.contactOutboxInstance = await this.outboxService.generateContactCreatedInstances(
-          createContactEvent, 
-          serializedContactCreatedEvent
-        );
+  //   /* create Outbox Instance of contactCreatedEvent, from createContactEvent */
+  //   this.contactOutboxInstance = await this.outboxService.generateContactCreatedInstances(
+  //         createContactEvent, 
+  //         serializedContactCreatedEvent
+  //       );
 
-    /* update step success status only when true (as sucess is false by default). 
-      This will also set lastStepProcessed  */
-    this.setStepStatus('step3', true);
+  //   /* update step success status only when true (as sucess is false by default). 
+  //     This will also set lastStepProcessed  */
+  //   this.setStepStatus('step3', true);
 
-    logTrace && logStop(methodName, 'contactOutboxInstance', this.contactOutboxInstance);
+  //   logTrace && logStop(methodName, 'contactOutboxInstance', this.contactOutboxInstance);
     
-  }
+  // }
 
 
   // Step 4: Save outbox instancee
-  async saveOutbox(createOutboxInstance) {
-    const previousStepSuccessful = this.getStepStatus('step3')
-    if (!previousStepSuccessful) {
-      /* provide rollbacks in reverse order */
-      const result = await this.rollbackTransactions(['step1']);
-    } 
-    /*  Save Logic Here */
-    const result: any = await this.saveOutBoxTransaction.save(this.contactOutboxInstance)
-    console.log("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC")
-    console.log("save outbox result ", result)
-    console.log("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC")
+  // async saveOutbox(createOutboxInstance) {
+  //   const previousStepSuccessful = this.getStepStatus('step3')
+  //   if (!previousStepSuccessful) {
+  //     /* provide rollbacks in reverse order */
+  //     const result = await this.rollbackTransactions(['step1']);
+  //   } 
+  //   /*  Save Logic Here */
+  //   const result: any = await this.saveOutBoxTransaction.save(this.contactOutboxInstance)
+  //   console.log("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC")
+  //   console.log("save outbox result ", result)
+  //   console.log("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC")
 
-    /* update step success status only when true (as sucess is false by default). 
-     This will also set lastStepProcessed  */
+  //   /* update step success status only when true (as sucess is false by default). 
+  //    This will also set lastStepProcessed  */
 
 
-    // update step status 
-  }
+  //   // update step status 
+  // }
   
 
   //*************************************************************** */
@@ -184,27 +178,27 @@ export class CreateContactSaga {
    * Takes an array of a seqence of steps in reverse order (eg ['step2', 'step1', etc]) 
    * @param stepSequence 
    */
-  async rollbackTransactions(stepSequence) {
-    // If any steps failed, rollback in reverse order
+  // async rollbackTransactions(stepSequence) {
+  //   // If any steps failed, rollback in reverse order
 
-    // Define rollBackMethods array
-    const rollBackMethods = [
-      this.rollbackSaveAggregate
-    ]
+  //   // Define rollBackMethods array
+  //   const rollBackMethods = [
+  //     this.rollbackSaveAggregate
+  //   ]
 
-    /* set rollback flag */
-    this.rollBackTriggered = true;
-    /* process rollbacks in reverse  */
-    stepSequence.forEach(async (step)=> {
-      let num = this.getStepSequenceNumberFor(step);
-      /* execute rollback */
-      await rollBackMethods[num]
-    })
+  //   /* set rollback flag */
+  //   this.rollBackTriggered = true;
+  //   /* process rollbacks in reverse  */
+  //   stepSequence.forEach(async (step)=> {
+  //     let num = this.getStepSequenceNumberFor(step);
+  //     /* execute rollback */
+  //     await rollBackMethods[num]
+  //   })
   
    
-    // let rollBackResult = await 
-    // call finalize
-  }
+  //   // let rollBackResult = await 
+  //   // call finalize
+  // }
   
   // Rollback Save Aggregate 
   async rollbackSaveAggregate() {
@@ -220,19 +214,21 @@ export class CreateContactSaga {
   }
 
   //*************************************************************** */
-  // Finalize Step
+  // Get Result
   //*************************************************************** */
   // return primary result or error response
-  finalize() {
-    let response: any;
-    if (this.rollBackTriggered) {
-      // construct error response here
-   
-    } 
-
-    const aggregate: ContactAggregate = this.aggregate;
-    return aggregate;
-
+  getSagaResult(process): any {
+    type FirstFailure = { step: string, name: string };
+    let updatedProcess = { ...process }
+    let firstFailure: FirstFailure = this.getFirstFailedStep(updatedProcess);
+    let failureOccurred = firstFailure.step ? true : false;
+    if (failureOccurred || process.rollbackTriggered) {
+      updatedProcess.sagaSuccessful = false;
+      let { step, name } = firstFailure;
+      updatedProcess.sagaFailureReason = `Process failed at step ${step}: ${name}`
+      return true;
+    }
+    return updatedProcess;
   }
 
   //*************************************************************** */
@@ -245,23 +241,82 @@ export class CreateContactSaga {
   // Saga Helper methods
   //*************************************************************** */
 
-  setStepStatus(step, successValue: boolean) {
-    let stepObject = this.process[step];
-    let objectCopy = { ...stepObject }
-    objectCopy.success = successValue;
-    this.process[step] = objectCopy;
-    /* update last step processed */
-    this.lastStepProcessed = step;
-  }
-  getStepStatus(step) {
-    let theStep = this.process[step];
-    return theStep.success;
+  /**
+   * Returns the first failed step in the saga
+   * @param process 
+   */
+  getFirstFailedStep(process) {
+     const processKeys = Object.keys(process);
+     /* extract keys that start with step */
+     console.log("PROCESS KEYS ", processKeys)
+     const stepKeys = processKeys.filter((processKey) => processKey.startsWith('step'));
+     console.log("STEP KEYS ", stepKeys)
+     
+     let firstFailedStep = '';
+     let firstFailedName = '';
+     let foundFirstFailure = false;
+     stepKeys.forEach((key) =>  {
+       if (process[key].success === false && !foundFirstFailure) {
+         firstFailedStep = key;
+         firstFailedName = process[key].name;
+         foundFirstFailure = true;
+       }
+     });
+     const firstFailure = { step: firstFailedStep, name: firstFailedName}; 
+     return firstFailure;
   }
 
-  getStepSequenceNumberFor(step) {
-    let theStep = this.process[step];
-    return theStep.seq;
+  /**
+   * Returns object with step and success flag; used for debugging
+   * @param process 
+   * @returns stepStatus
+   */
+  getStepStatus(process) {
+    const processKeys = Object.keys(process);
+    /* extract keys that start with step */
+    const stepKeys = processKeys.filter((processKey) => processKey.startsWith('step'));
+    /* create object with all the steps/success */
+    let stepStatus = {}
+    stepKeys.forEach((key) => stepStatus[key] = {
+      name: process[key].name,
+      success: process[key].success
+    })
+    return stepStatus;
   }
 
+
+
+  // setStepStatus(step, successValue: boolean) {
+  //   let stepObject = this.process[step];
+  //   let objectCopy = { ...stepObject }
+  //   objectCopy.success = successValue;
+  //   this.process[step] = objectCopy;
+  //   /* update last step processed */
+  //   this.lastStepProcessed = step;
+  // }
+  // getStepStatus(step) {
+  //   let theStep = this.process[step];
+  //   return theStep.success;
+  // }
+
+  // getStepSequenceNumberFor(step) {
+  //   let theStep = this.process[step];
+  //   return theStep.seq;
+  // }
+  /**
+   * Update current state of process
+   * @param process contains state of the process
+   * @param step    step name (eg. 'step1')
+   * @param success provides whether process step completed successful
+   * @returns updatedProcess
+   */
+  updateProcessStatus(process, step:string, success: boolean) {
+    let processCopy = { ...process };
+    processCopy[step] = success;             /* assign success status */
+    if (processCopy[step].success) {         /* if successful, update lastStepCompleted */
+      processCopy.lastStepCompleted = step;
+    }
+    return processCopy;
+  }
 }
   

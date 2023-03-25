@@ -68,9 +68,53 @@ export class AppController {
   @Get('test1')
   test1(): any { 
 
-    let objectA = { a: 1, b: false, c: 2}
-    let objectB = {...objectA, b: true}
-    return objectB;
+    let process = {
+      rollbackTriggered: false,
+      sagaSuccessful: true,
+      sagaFailureReason: '',
+      step1: { seq: 0, name: 'saveAggregate',         success: true },
+      step2: { seq: 1, name: 'generateCreatedEvent',  success: true },
+      step3: { seq: 2, name: 'createdOutboxInstance', success: false },
+      step4: { seq: 3, name: 'saveOutbox',            success: false }
+    }
+
+    // Get Transaction Status
+    // const processKeys = Object.keys(process);
+    // /* extract keys that start with step */
+    // console.log("PROCESS KEYS ", processKeys)
+    // const stepKeys = processKeys.filter((processKey) => processKey.startsWith('step'));
+    // console.log("STEP KEYS ", stepKeys)
+
+    // let transactionStatus = {}
+    // stepKeys.forEach((key) => transactionStatus[key] = {
+    //   name: process[key].name,
+    //   success: process[key].success
+    // })
+    // console.log("transactionstatus ", transactionStatus)
+
+    // Get First Failure Point
+    const processKeys = Object.keys(process);
+    /* extract keys that start with step */
+    console.log("PROCESS KEYS ", processKeys)
+    const stepKeys = processKeys.filter((processKey) => processKey.startsWith('step'));
+    console.log("STEP KEYS ", stepKeys)
+    
+    let firstFailedStep = '';
+    let firstFailedName = '';
+    let foundFirstFailure = false;
+    stepKeys.forEach((key) =>  {
+      if (process[key].success === false && !foundFirstFailure) {
+        firstFailedStep = key;
+        firstFailedName = process[key].name;
+        foundFirstFailure = true;
+      }
+    });
+    const firstFailure = { step: firstFailedStep, name: firstFailedName}; 
+
+    console.log("firstFailure ", firstFailure)
+
+
+
 
     // const clientError = new ClientError(404);
     // clientError.setReason(ClientErrorReasons.KeysNotInDatabase);
