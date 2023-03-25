@@ -41,6 +41,7 @@ import { UpdateContactResponse } from './contact/responses/update.contact.respon
 import { ContactUpdatedEvent } from './events/contact/domainChanges';
 import { logStart, logStop, logStartVal } from './utils/trace.log';
 import { ClientErrorReasons, ClientError } from './common/errors';
+import { ContactServiceLatest } from './contact/services/contact.service.latest';
 import * as R from 'ramda';
 
 const logTrace = true;
@@ -50,6 +51,7 @@ const logTrace = true;
 export class AppController {
   constructor(
     private readonly appService: AppService,
+    private readonly contactServiceLatest: ContactServiceLatest,
     private readonly contactService: ContactService,
     private readonly outboxService:  OutboxService,
     private readonly contactAggregate: ContactAggregate,
@@ -66,10 +68,14 @@ export class AppController {
   @Get('test1')
   test1(): any { 
 
-    const clientError = new ClientError(404);
-    clientError.setReason(ClientErrorReasons.KeysNotInDatabase);
-    clientError.setLongMessage("check id")
-    return clientError;
+    let objectA = { a: 1, b: false, c: 2}
+    let objectB = {...objectA, b: true}
+    return objectB;
+
+    // const clientError = new ClientError(404);
+    // clientError.setReason(ClientErrorReasons.KeysNotInDatabase);
+    // clientError.setLongMessage("check id")
+    // return clientError;
      
   } // end of test1
 
@@ -132,7 +138,7 @@ export class AppController {
     console.log('MS - ....with header', header);
     console.log('MS - ....with message', message);
     let cmdResult: CreateContactResponse | BaseError;
-    cmdResult =  await this.contactService.create(payload)
+    cmdResult =  await this.contactServiceLatest.create(payload)
     return cmdResult;
   }
 

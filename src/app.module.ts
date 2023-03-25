@@ -12,8 +12,13 @@ import { ContactSaveService } from './contact/contact.save.service';
 import { OutboxService } from './outbox/outbox.service';
 import { DomainChangeEventPublisher } from './outbox/domainchange.event.publisher';
 import { ConfigModule } from '@nestjs/config';
-import { DomainChangeEventFactory } from './contact/domain.change.event.factory';
+import { DomainChangeEventFactory } from './contact/services/domain.change.event.factory';
 import { DomainChangeEventManager } from './outbox/domainchange.event.manager';
+import { ContactServiceLatest } from './contact/services/contact.service.latest';
+import { CreateContactSaga } from './contact/sagas/create.contact.saga';
+import { ContactAggregateService } from './contact/services/contact.aggregate.service';
+import { CreateContactTransaction } from './contact/transactions';
+import { SaveOutboxTransaction } from './outbox/transactions/save.outbox.transaction';
 
 
 @Module({
@@ -41,7 +46,12 @@ import { DomainChangeEventManager } from './outbox/domainchange.event.manager';
       OutboxService,
       DomainChangeEventFactory,
       DomainChangeEventPublisher,
-      DomainChangeEventManager
+      DomainChangeEventManager,
+      ContactServiceLatest,
+      CreateContactSaga,
+      ContactAggregateService,
+      CreateContactTransaction,
+      SaveOutboxTransaction
   ],
 })
 export class AppModule {}
