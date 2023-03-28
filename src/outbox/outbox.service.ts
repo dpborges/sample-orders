@@ -71,7 +71,7 @@ export class OutboxService {
 
   /* generates the contactCreatedEvent and returns an outbox entity instance
      to the contact service to ultimately save it with the aggregate save transaction   */
-  generateContactCreatedInstances(
+  createContactCreatedInstance(
       createContactEvent: CreateContactEvent,
       serializedEventPayload:  string
     ): ContactOutbox {
@@ -104,7 +104,7 @@ export class OutboxService {
 
     const contactUpdatedEventOutboxInstance:ContactOutbox = this.contactOutboxRepository.create({
       accountId, 
-      subject: Subjects.ContactCreated,
+      subject: Subjects.ContactUpdated,
       payload: serializedEventPayload,
       userId,
       status: OutboxStatus.unpublished
@@ -112,6 +112,12 @@ export class OutboxService {
       
    return contactUpdatedEventOutboxInstance
   }
+
+  async saveOutboxInstance(contactOutboxInstance: ContactOutbox): Promise<any> {
+    /* save outbox message entry  */
+    const savedResult = await this.contactOutboxRepository.save(contactOutboxInstance)
+    return savedResult;
+  };
 
   /* helper function (used by generateContactCreatedInstances) to create and 
      serialize contactCreatedEvent  */

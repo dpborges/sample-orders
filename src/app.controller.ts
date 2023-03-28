@@ -1,11 +1,11 @@
 import { BaseError } from './common/errors/base.error';
 import { CreateContactResponse } from './contact/responses/create.contact.response';
-import { genBeforeAndAfterImage } from 'src/utils/gen.beforeAfter.image';
-import { ContactAggregateEntities } from './contact/aggregate-types/contact.aggregate.type';
+// import { genBeforeAndAfterImage } from 'src/utils/gen.beforeAfter.image';
+// import { ContactAggregateEntities } from './contact/aggregate-types/contact.aggregate.type';
 // import { EventStatusUpdater } from './outbox/event.status.updater';
-import { OutboxStatus } from './outbox/outbox.status.enum';
-import { OutboxService } from './outbox/outbox.service';
-import { PublishUnpublishedEventsCmdPayload } from './outbox/events/commands';
+// import { OutboxStatus } from './outbox/outbox.status.enum';
+// import { OutboxService } from './outbox/outbox.service';
+// import { PublishUnpublishedEventsCmdPayload } from './outbox/events/commands';
 import { NatsJetStreamContext } from '@nestjs-plugins/nestjs-nats-jetstream-transport';
 import { Controller, Get, UseFilters } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
@@ -18,29 +18,30 @@ import {
 } from '@nestjs/microservices';
 import { AppService } from './app.service';
 import { Subjects } from './events/contact/domainChanges'; 
-import { CreateOrderEvent, UpdateOrderEvent, DeleteOrderEvent } from './events/orders';
-import { OrderCreatedEvent, OrderUpdatedEvent, OrderDeletedEvent } from './events/orders';
+// import { CreateOrderEvent, UpdateOrderEvent, DeleteOrderEvent } from './events/orders';
+// import { OrderCreatedEvent, OrderUpdatedEvent, OrderDeletedEvent } from './events/orders';
 // import { Patterns } from './commands/orders/patterns';
 import { ExceptionFilter } from './common/filters';
 import { Contact } from './contact/entities/contact.entity';
-import { CreateContactDto } from './contact/dtos/create.contact.dto';
+// import { CreateContactDto } from './contact/dtos/create.contact.dto';
 // import { DomainMgtService } from './domain-mgt/domain-mgt.service';
-import { ContactService } from './contact/contact.service';
+// import { ContactService } from './contact/contact.service';
 import { ContactCommand } from './events/contact/commands';
-import { OutboxCommands } from './outbox/events/commands';
+// import { OutboxCommands } from './outbox/events/commands';
 import { CreateContactEvent } from './events/contact/commands';
-import { ContactQueries } from './events/contact/queries';
-import { QueryContactByIdPayload } from './events/contact/queries';
-import { ContactCreatedEvent } from './events/contact/domainChanges';
-import { UpdateEventStatusCmdPayload } from './outbox/events/commands';
-import { DomainChangeEventManager } from './outbox/domainchange.event.manager';
-import { ContactAggregate } from './contact/aggregate-types/contact.aggregate';
-import { UpdateContactEvent } from './events/contact/commands';
+// import { ContactQueries } from './events/contact/queries';
+// import { QueryContactByIdPayload } from './events/contact/queries';
+// import { ContactCreatedEvent } from './events/contact/domainChanges';
+// import { UpdateEventStatusCmdPayload } from './outbox/events/commands';
+// import { DomainChangeEventManager } from './outbox/domainchange.event.manager';
+// import { ContactAggregate } from './contact/aggregate-types/contact.aggregate';
+// import { UpdateContactEvent } from './events/contact/commands';
 import { ServerError } from './common/errors/server/server.error';
-import { UpdateContactResponse } from './contact/responses/update.contact.response';
+// import { UpdateContactResponse } from './contact/responses/update.contact.response';
 import { ContactUpdatedEvent } from './events/contact/domainChanges';
-import { logStart, logStop, logStartVal } from './utils/trace.log';
+// import { logStart, logStop, logStartVal } from './utils/trace.log';
 import { ClientErrorReasons, ClientError } from './common/errors';
+import { ContactAggregate } from './contact/types/contact.aggregate';
 import { ContactServiceLatest } from './contact/services/contact.service.latest';
 import * as R from 'ramda';
 
@@ -49,14 +50,15 @@ const logTrace = true;
 @UseFilters(new ExceptionFilter())
 @Controller()
 export class AppController {
+
   constructor(
     private readonly appService: AppService,
     private readonly contactServiceLatest: ContactServiceLatest,
-    private readonly contactService: ContactService,
-    private readonly outboxService:  OutboxService,
-    private readonly contactAggregate: ContactAggregate,
+    // private readonly contactAggregate: ContactAggregate
+    // private readonly contactService: ContactService,
+    // private readonly outboxService:  OutboxService,
     // private readonly eventStatusUpdater: EventStatusUpdater,
-    private readonly domainChangeEventManager: DomainChangeEventManager
+    // private readonly domainChangeEventManager: DomainChangeEventManager
     ) {}
 
   /* Rest End Point */
@@ -67,17 +69,6 @@ export class AppController {
 
   @Get('test1')
   test1(): any { 
-
-    let process = {
-      rollbackTriggered: false,
-      sagaSuccessful: true,
-      sagaFailureReason: '',
-      step1: { seq: 0, name: 'saveAggregate',         success: true },
-      step2: { seq: 1, name: 'generateCreatedEvent',  success: true },
-      step3: { seq: 2, name: 'createdOutboxInstance', success: false },
-      step4: { seq: 3, name: 'saveOutbox',            success: false }
-    }
-
     // Get Transaction Status
     // const processKeys = Object.keys(process);
     // /* extract keys that start with step */
@@ -92,30 +83,21 @@ export class AppController {
     // })
     // console.log("transactionstatus ", transactionStatus)
 
-    // Get First Failure Point
-    const processKeys = Object.keys(process);
-    /* extract keys that start with step */
-    console.log("PROCESS KEYS ", processKeys)
-    const stepKeys = processKeys.filter((processKey) => processKey.startsWith('step'));
-    console.log("STEP KEYS ", stepKeys)
-    
-    let firstFailedStep = '';
-    let firstFailedName = '';
-    let foundFirstFailure = false;
-    stepKeys.forEach((key) =>  {
-      if (process[key].success === false && !foundFirstFailure) {
-        firstFailedStep = key;
-        firstFailedName = process[key].name;
-        foundFirstFailure = true;
-      }
-    });
-    const firstFailure = { step: firstFailedStep, name: firstFailedName}; 
+    // const process = {
+    //   rollbackTriggered: false,
+    //   sagaSuccessful: true,
+    //   sagaFailureReason: '',
+    //   step1: { seq: 0, name: 'saveAggregate',         success: true },
+    //   step2: { seq: 1, name: 'generateCreatedEvent',  success: true },
+    //   step3: { seq: 2, name: 'createdOutboxInstance', success: true },
+    //   step4: { seq: 3, name: 'saveOutbox',            success: false }
+    // }
 
-    console.log("firstFailure ", firstFailure)
-
-
-
-
+    // let steps = ['step1', 'step2', 'step3'];
+    // let successFlagsArray = steps.map(step => process[step].success);
+    // let isSuccessful = (stepSuccess) => stepSuccess;
+    // let stepsSuccessful = successFlagsArray.every(isSuccessful);
+    // console.log("All steps listed successful ", stepsSuccessful)
     // const clientError = new ClientError(404);
     // clientError.setReason(ClientErrorReasons.KeysNotInDatabase);
     // clientError.setLongMessage("check id")
@@ -146,23 +128,23 @@ export class AppController {
   //************************************************************** */
   // Contact Query Handlers
   //************************************************************** */
-  @ExecuteCommand(ContactQueries.findContactById)
-  async findContactById(
-    @Payload() data: QueryContactByIdPayload,
-    @Ctx() context: NatsJetStreamContext
-  ): Promise<any> {
-    const subject = context.message.subject;
-    console.log(`MS - Received ${ContactQueries.findContactById} in Orders Microservice`);
-    console.log('MS - ....with payload', data);
-    let cmdResult = "Query reached microservice";
-    // const cmdResult: any  =  this.outboxService.publishUnpublishedEvents
+  // @ExecuteCommand(ContactQueries.findContactById)
+  // async findContactById(
+  //   @Payload() data: QueryContactByIdPayload,
+  //   @Ctx() context: NatsJetStreamContext
+  // ): Promise<any> {
+  //   const subject = context.message.subject;
+  //   console.log(`MS - Received ${ContactQueries.findContactById} in Orders Microservice`);
+  //   console.log('MS - ....with payload', data);
+  //   let cmdResult = "Query reached microservice";
+  //   // const cmdResult: any  =  this.outboxService.publishUnpublishedEvents
 
-    // Here you create Order and insert CreatedOrderEvent to the event database
-    // as a single transaction. The publish flag will be false false
+  //   // Here you create Order and insert CreatedOrderEvent to the event database
+  //   // as a single transaction. The publish flag will be false false
 
-    // here you return the CreatedOrderEvent.
-    return cmdResult;
-  }
+  //   // here you return the CreatedOrderEvent.
+  //   return cmdResult;
+  // }
 
 
   //************************************************************** */
@@ -181,32 +163,32 @@ export class AppController {
     console.log('MS - ....with data', payload);
     console.log('MS - ....with header', header);
     console.log('MS - ....with message', message);
-    let cmdResult: CreateContactResponse | BaseError;
-    cmdResult =  await this.contactServiceLatest.create(payload)
+    // let cmdResult: CreateContactResponse | BaseError;
+    let cmdResult: any =  await this.contactServiceLatest.createContact(payload)
     return cmdResult;
   }
 
   // Update Contact
-  @ExecuteCommand(ContactCommand.updateContact)
-  async updateContactCommandHandler(
-    @Payload() payload: UpdateContactEvent,
-    @Ctx() context: NatsJetStreamContext
-  ): Promise<UpdateContactResponse | ServerError> {
-    const header = payload.header;
-    const message = payload.message;
-    const subject = context.message.subject;
-    console.log(`MS - Received subject ${subject} on Contact Microservice`);
-    console.log('MS - ....with data', payload);
-    console.log('MS - ....with header', header);
-    console.log('MS - ....with message', message);
-    const cmdResult: any  =  await this.contactService.updateAggregate(payload)
-    // Here you create Order and insert CreatedOrderEvent to the event database
-    // as a single transaction. The publish flag will be false false
+  // @ExecuteCommand(ContactCommand.updateContact)
+  // async updateContactCommandHandler(
+  //   @Payload() payload: UpdateContactEvent,
+  //   @Ctx() context: NatsJetStreamContext
+  // ): Promise<UpdateContactResponse | ServerError> {
+  //   const header = payload.header;
+  //   const message = payload.message;
+  //   const subject = context.message.subject;
+  //   console.log(`MS - Received subject ${subject} on Contact Microservice`);
+  //   console.log('MS - ....with data', payload);
+  //   console.log('MS - ....with header', header);
+  //   console.log('MS - ....with message', message);
+  //   const cmdResult: any  =  await this.contactService.updateAggregate(payload)
+  //   // Here you create Order and insert CreatedOrderEvent to the event database
+  //   // as a single transaction. The publish flag will be false false
 
-    // here you return the CreatedOrderEvent.
-    // return "Completed Contact Update";
-    return cmdResult;
-  }
+  //   // here you return the CreatedOrderEvent.
+  //   // return "Completed Contact Update";
+  //   return cmdResult;
+  // }
 
 
   //************************************************************** */
@@ -220,32 +202,32 @@ export class AppController {
    * @param context - standard Nats Jetstream context
    * @returns void
    */
-  @ExecuteCommand(OutboxCommands.publishUnpublishedEvents)
-  async publishUnpublishedEvents(
-    @Payload() data: PublishUnpublishedEventsCmdPayload,
-    @Ctx() context: NatsJetStreamContext
-  ): Promise<any> {
-    const subject = context.message.subject;
-    const headers = context.message.headers;
-    console.log(`MS - Received command ${OutboxCommands.publishUnpublishedEvents} on Outbox command handler`);
-    console.log('MS - ....with payload', data);
-    const cmdResult: any = this.outboxService.publishUnpublishedEvents(data)
+  // @ExecuteCommand(OutboxCommands.publishUnpublishedEvents)
+  // async publishUnpublishedEvents(
+  //   @Payload() data: PublishUnpublishedEventsCmdPayload,
+  //   @Ctx() context: NatsJetStreamContext
+  // ): Promise<any> {
+  //   const subject = context.message.subject;
+  //   const headers = context.message.headers;
+  //   console.log(`MS - Received command ${OutboxCommands.publishUnpublishedEvents} on Outbox command handler`);
+  //   console.log('MS - ....with payload', data);
+  //   const cmdResult: any = this.outboxService.publishUnpublishedEvents(data)
     
-    return `Processed command ${OutboxCommands.publishUnpublishedEvents}`;
-  }
+  //   return `Processed command ${OutboxCommands.publishUnpublishedEvents}`;
+  // }
 
-  @ExecuteCommand(OutboxCommands.updateStatus)
-  async updateOutboxStatus(
-    @Payload() commandPayload: UpdateEventStatusCmdPayload,
-    @Ctx() context: NatsJetStreamContext
-  ): Promise<any> {
-    const subject = context.message.subject;
-    const headers = context.message.headers;
-    console.log(`MS - Received command ${OutboxCommands.updateStatus} on Outbox command handler`);
-    console.log('MS - ....with payload', commandPayload);
-    const cmdResult: any = this.domainChangeEventManager.updateStatus(commandPayload)
-    return `Processed command ${OutboxCommands.updateStatus}`;
-  }
+  // @ExecuteCommand(OutboxCommands.updateStatus)
+  // async updateOutboxStatus(
+  //   @Payload() commandPayload: UpdateEventStatusCmdPayload,
+  //   @Ctx() context: NatsJetStreamContext
+  // ): Promise<any> {
+  //   const subject = context.message.subject;
+  //   const headers = context.message.headers;
+  //   console.log(`MS - Received command ${OutboxCommands.updateStatus} on Outbox command handler`);
+  //   console.log('MS - ....with payload', commandPayload);
+  //   const cmdResult: any = this.domainChangeEventManager.updateStatus(commandPayload)
+  //   return `Processed command ${OutboxCommands.updateStatus}`;
+  // }
 
   //************************************************************** */
   // Sample Event Listeners for Domain Changes
@@ -257,64 +239,64 @@ export class AppController {
   // @EventPattern('order.created')
 
   // Mock Listener for ContactCreated Event and updates event status in outbox
-  @ListenForEvent(Subjects.ContactCreated)
-  public async contactCreatedHandler(
-    @Ctx()  context: NatsJetStreamContext,
-    @Payload() contactCreatedEvent: ContactCreatedEvent) 
-  {
-    const methodName = 'contactCreatedHandler';
-    logTrace && logStartVal(methodName, 'contactCreatedEvent', JSON.stringify(contactCreatedEvent));
+  // @ListenForEvent(Subjects.ContactCreated)
+  // public async contactCreatedHandler(
+  //   @Ctx()  context: NatsJetStreamContext,
+  //   @Payload() contactCreatedEvent: ContactCreatedEvent) 
+  // {
+  //   const methodName = 'contactCreatedHandler';
+  //   logTrace && logStartVal(methodName, 'contactCreatedEvent', JSON.stringify(contactCreatedEvent));
    
-    const { header, message } = contactCreatedEvent;
-    const { outboxId } = header;
-    const { accountId, email, firstName, lastName } = message;
+  //   const { header, message } = contactCreatedEvent;
+  //   const { outboxId } = header;
+  //   const { accountId, email, firstName, lastName } = message;
     
-    /* Update event status to pending via service (request/reply) */
-    await this.appService.updateEventStatus(outboxId, OutboxStatus.pending)
+  //   /* Update event status to pending via service (request/reply) */
+  //   await this.appService.updateEventStatus(outboxId, OutboxStatus.pending)
 
-    /* Handle event here  */
-    const successfullyProcessed = () => true;
+  //   /* Handle event here  */
+  //   const successfullyProcessed = () => true;
 
-    if (successfullyProcessed) {
-      /* Update event status to processed  */
-      await this.appService.updateEventStatus(outboxId, OutboxStatus.processed)
+  //   if (successfullyProcessed) {
+  //     /* Update event status to processed  */
+  //     await this.appService.updateEventStatus(outboxId, OutboxStatus.processed)
 
-      /* acknowledge message */
-      context.message.ack();  
-    }
+  //     /* acknowledge message */
+  //     context.message.ack();  
+  //   }
     
-    logTrace && logStop(methodName, 'subject',  `${context.message.subject} processed`);
-  }
+  //   logTrace && logStop(methodName, 'subject',  `${context.message.subject} processed`);
+  // }
 
  //  Mock Listener for ContactUpdated Event and updates event status in outbox
-  @ListenForEvent(Subjects.ContactUpdated)
-  public async contactUpdatedHandler(
-    @Ctx()  context: NatsJetStreamContext,
-    @Payload() contactedUpdatedEvent: ContactUpdatedEvent) 
-  {
-    const methodName = 'contactUpdatedHandler';
-    logTrace && logStartVal(methodName, 'contactedUpdatedEvent',JSON.stringify(contactedUpdatedEvent));
+  // @ListenForEvent(Subjects.ContactUpdated)
+  // public async contactUpdatedHandler(
+  //   @Ctx()  context: NatsJetStreamContext,
+  //   @Payload() contactedUpdatedEvent: ContactUpdatedEvent) 
+  // {
+  //   const methodName = 'contactUpdatedHandler';
+  //   logTrace && logStartVal(methodName, 'contactedUpdatedEvent',JSON.stringify(contactedUpdatedEvent));
 
-    const {header, message } = contactedUpdatedEvent;
-    const { outboxId } = header;
-    const { accountId, email, firstName, lastName } = message;
+  //   const {header, message } = contactedUpdatedEvent;
+  //   const { outboxId } = header;
+  //   const { accountId, email, firstName, lastName } = message;
     
-    /* Update event status to pending via service (request/reply) */
-    await this.appService.updateEventStatus(outboxId, OutboxStatus.pending)
+  //   /* Update event status to pending via service (request/reply) */
+  //   await this.appService.updateEventStatus(outboxId, OutboxStatus.pending)
 
-    /* Handle event here  */
-    const successfullyProcessed = () => true;
+  //   /* Handle event here  */
+  //   const successfullyProcessed = () => true;
 
-    if (successfullyProcessed) {
-      /* Update event status to processed  */
-      await this.appService.updateEventStatus(outboxId, OutboxStatus.processed)
+  //   if (successfullyProcessed) {
+  //     /* Update event status to processed  */
+  //     await this.appService.updateEventStatus(outboxId, OutboxStatus.processed)
 
-      /* acknowledge message */
-      context.message.ack();  
-    }
+  //     /* acknowledge message */
+  //     context.message.ack();  
+  //   }
 
-    logTrace && logStop(methodName, 'subject',  `${context.message.subject} processed`);
-  }
+  //   logTrace && logStop(methodName, 'subject',  `${context.message.subject} processed`);
+  // }
   
 
   
@@ -332,25 +314,25 @@ export class AppController {
   // }
 
 
-  @Get('/sandboxresults')
-  async sandbox() {  
-    const isNull = value => value === null;
+  // @Get('/sandboxresults')
+  // async sandbox() {  
+  //   const isNull = value => value === null;
 
-    let sampleAggregate = { a: null, b: null };
+  //   let sampleAggregate = { a: null, b: null };
 
-    /* transfer entity values into array */
-    let entityArrayValues = [];
-    Object.keys(sampleAggregate).forEach((key:string) => entityArrayValues.push(sampleAggregate[key]) );
+  //   /* transfer entity values into array */
+  //   let entityArrayValues = [];
+  //   Object.keys(sampleAggregate).forEach((key:string) => entityArrayValues.push(sampleAggregate[key]) );
 
 
-    console.log(">> Below are entity values ")
-    console.log(entityArrayValues);
+  //   console.log(">> Below are entity values ")
+  //   console.log(entityArrayValues);
 
-    /* check if all values are null */
-    let result = entityArrayValues.every(isNull)
-    console.log(">> All aggregates null ", result)
-    return 'completed displaying results';
-  }
+  //   /* check if all values are null */
+  //   let result = entityArrayValues.every(isNull)
+  //   console.log(">> All aggregates null ", result)
+  //   return 'completed displaying results';
+  // }
 
 
   // @Get('/createaggregate')

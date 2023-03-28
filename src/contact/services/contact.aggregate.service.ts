@@ -3,7 +3,7 @@ var camelize = require('camelize');
 import { contactRepositories } from '../repos/contact.repositories';
 import { ContactAcctRel } from '../entities/contact.acct.rel.entity';
 import { ContactSource } from '../entities/contact.source.entity';
-import { ContactSaveService } from '../contact.save.service';
+// import { ContactSaveService } from '../contact.save.service';
 import { Injectable, Inject } from '@nestjs/common';
 import { Repository, DataSource } from 'typeorm';
 import { Contact } from '../entities/contact.entity';
@@ -11,6 +11,7 @@ import { AggregateRoot } from 'src/aggregrate/aggregateRoot';
 import { CreateContactDto } from '../dtos/create.contact.dto';
 import { RepoToken } from '../../db-providers/repo.token.enum';
 import { ContactAggregateEntities } from '../aggregate-types/contact.aggregate.type';
+import { ContactAggregate } from '../types/contact.aggregate'
 import { BusinessRule } from '../business-rules/business-rule.enum';
 // import { TransactionStatus } from './transaction-status.type-DELETE-ts'
 import { CreateContactEvent } from 'src/events/contact/commands';
@@ -18,6 +19,7 @@ import { ContactCreatedEvent } from 'src/events/contact/domainChanges';
 import { contactAcctSourceSql } from '../dbqueries';
 import { contactAcctSql } from '../dbqueries';
 import { getContactByAcctAndId } from '../dbqueries';
+import { CreateContactTransaction } from '../transactions';
 import { genBeforeAndAfterImage } from '../../utils/gen.beforeAfter.image';
 import { logStart, logStop } from '../../utils/trace.log';
 const logTrace = true;
@@ -31,7 +33,7 @@ export class ContactAggregateService  {
   private numberOfAggregateEntities = 3;  // used for applying updates
 
   constructor(
-    private contactSaveService: ContactSaveService,
+    private createContactTransaction: CreateContactTransaction,
     @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
     @Inject(RepoToken.CONTACT_SOURCE_REPOSITORY) private contactSourceRepository: Repository<ContactSource>,
     @Inject(RepoToken.CONTACT_ACCT_REL_REPOSITORY) private contactAcctRelRepository: Repository<ContactAcctRel>,
@@ -40,40 +42,56 @@ export class ContactAggregateService  {
 
   // Define mandatory entities only below and omit optional entities as they will 
   // be added dynamically upon update.
-  aggregate: ContactAggregateEntities = {
-     contact: null,
-     contactAcctRel: null
-  }
+  // aggregate: ContactAggregateEntities = {
+  //    contact: null,
+  //    contactAcctRel: null
+  // }
  
   /* Constructs aggregate from parts from the create <domain> event object. If properties for
      optional relations are not provided, do not add to aggregateEntities object.  */
-  async createAggregate(createContactEvent: CreateContactEvent): Promise<ContactAggregateEntities> {
+  async createAggregate(createContactEvent: CreateContactEvent): Promise<ContactAggregate> {
     /* destructure Dto to extract aggregate entities */
-    const { email, accountId, firstName, lastName, mobilePhone } = createContactEvent.message;
+    const { accountId, email, firstName, lastName, mobilePhone } = createContactEvent.message;
     const { sourceType, sourceName } = createContactEvent.message;
     
+    /* declare aggregate */
+    let aggregate: ContactAggregate = { contact: null, contactAcctRel: null, contactSource: null };
+
     /* create contact instance and set the aggregate property */
-    this.aggregate.contact = this.contactRepository.create({
-      email, firstName, lastName,  mobilePhone
+    aggregate.contact = this.contactRepository.create({
+       email, firstName, lastName,  mobilePhone
     });
     
     /* create instance of contact account relation; defer assigining actual contactId till save contact  */
     const placeholderContactId: number = -1;
-    this.aggregate.contactAcctRel = this.contactAcctRelRepository.create({
+    aggregate.contactAcctRel = this.contactAcctRelRepository.create({
       accountId, contactId:  placeholderContactId
     });
 
     /* create Optional contactSource relation and add to aggregateEntities only if properties exist  */
     if (sourceName && sourceType) {
-      this.aggregate.contactSource = this.contactSourceRepository.create({ sourceType, sourceName });
+      aggregate.contactSource = this.contactSourceRepository.create({ sourceType, sourceName });
     }
 
     /* initialize verion to 1 */
-    this.aggregate.contact.version = 1;  
+    // this.aggregate.contact.version = 1;  
 
     /* Return aggregate entities instance so it can subsequently be used by save() operation */
-    return this.aggregate;
+    return aggregate;
   };
+
+
+  /**
+   * Saves the aggregate to the database using the createContactTransaction
+   * @param contactAggregate 
+   * @returns 
+   */
+  async saveAggregate(contactAggregate: ContactAggregate): Promise<ContactAggregate>   {
+    const savedAggregate = await this.createContactTransaction.create(contactAggregate);
+    return savedAggregate;
+  }
+     
+
 
   // To Be DELETED
   /* returns entire aggregate  */
@@ -222,51 +240,51 @@ export class ContactAggregateService  {
   loadPartialAggregate() {}
  
   /* Layers on idempotent busines rules on top of aggregate returned from ContactAggregate.create method */
-  async idempotentCreate(
-    contactAggregateEntities: ContactAggregateEntities,
-  ): Promise<ContactAggregateEntities> {
-    const methodName = 'idempotentCreate';
-    logTrace && logStart([methodName, 'contactAggregateEntities','aggregateId'], arguments);
+  // async idempotentCreate(
+  //   contactAggregateEntities: ContactAggregateEntities,
+  // ): Promise<ContactAggregateEntities> {
+  //   const methodName = 'idempotentCreate';
+  //   logTrace && logStart([methodName, 'contactAggregateEntities','aggregateId'], arguments);
 
-    /* pull out individual entities from aggregate */
-    const { contact, contactAcctRel, contactSource } = contactAggregateEntities;
+  //   /* pull out individual entities from aggregate */
+  //   const { contact, contactAcctRel, contactSource } = contactAggregateEntities;
     
-    /* run contactExistInAcct Check business rule */
-    const ruleInputs = { accountId: contactAcctRel.accountId, email: contact.email };
-    const ruleResult: any = await this.runAsyncBusinessRule(BusinessRule.contactExistInAcctCheck, ruleInputs);
-    const { contactExists, registeredInAcct, contactInstance } = ruleResult;
+  //   /* run contactExistInAcct Check business rule */
+  //   const ruleInputs = { accountId: contactAcctRel.accountId, email: contact.email };
+  //   const ruleResult: any = await this.runAsyncBusinessRule(BusinessRule.contactExistInAcctCheck, ruleInputs);
+  //   const { contactExists, registeredInAcct, contactInstance } = ruleResult;
     
-    /* if contact already exists add the id from existing contactInstance */
-    if (contactExists) {  /* If exists, no need to call save; Just return existing aggregate root */
-      contactAggregateEntities.contact.id = contactInstance.id;
-      logTrace && logStop(methodName, 'contactAggregateEntities', contactAggregateEntities);
-      return contactAggregateEntities; 
-    } 
+  //   /* if contact already exists add the id from existing contactInstance */
+  //   if (contactExists) {  /* If exists, no need to call save; Just return existing aggregate root */
+  //     contactAggregateEntities.contact.id = contactInstance.id;
+  //     logTrace && logStop(methodName, 'contactAggregateEntities', contactAggregateEntities);
+  //     return contactAggregateEntities; 
+  //   } 
 
-    if (!registeredInAcct)  {
-      console.log(`WARNING: contact id:${contact.id} not registered in contactAcctRel table`)
-    }
+  //   if (!registeredInAcct)  {
+  //     console.log(`WARNING: contact id:${contact.id} not registered in contactAcctRel table`)
+  //   }
     
-    /* if contact already exists but is not registered in provided account, 
-       add the contactAcctRel to the aggregate, and remove the other entities except aggreate root*/
-    // if (contactExists && !registeredInAcct) {  /* If contact exists but registered in account, register in contactAcctRel table */
-    //   contactAggregateEntities.contact.id = contactInstance.id;
-    //   contactAggregateEntities.contactAcctRel = this.contactAcctRelRepository.create({
-    //     accountId: contactAcctRel.accountId, contactId: contactInstance.id
-    //   })
-    //   /* add the contact Id to contact entity to force a save vs create */
-    //   contact.id = contactInstance.id;
-    //   contactAggregateEntities.contact = contact;
-    //   contactAggregateEntities.contactSource = null; /* setting to null, to avoid saving again on save */
-    // }
-    // console.log("    generated Event ", JSON.stringify(generatedEvents))
+  //   /* if contact already exists but is not registered in provided account, 
+  //      add the contactAcctRel to the aggregate, and remove the other entities except aggreate root*/
+  //   // if (contactExists && !registeredInAcct) {  /* If contact exists but registered in account, register in contactAcctRel table */
+  //   //   contactAggregateEntities.contact.id = contactInstance.id;
+  //   //   contactAggregateEntities.contactAcctRel = this.contactAcctRelRepository.create({
+  //   //     accountId: contactAcctRel.accountId, contactId: contactInstance.id
+  //   //   })
+  //   //   /* add the contact Id to contact entity to force a save vs create */
+  //   //   contact.id = contactInstance.id;
+  //   //   contactAggregateEntities.contact = contact;
+  //   //   contactAggregateEntities.contactSource = null; /* setting to null, to avoid saving again on save */
+  //   // }
+  //   // console.log("    generated Event ", JSON.stringify(generatedEvents))
 
-    contactAggregateEntities = await this.contactSaveService.save(contactAggregateEntities);
+  //   contactAggregateEntities = await this.contactSaveService.save(contactAggregateEntities);
 
-    /* returns the aggregate root */
-    logTrace && logStop(methodName, 'contactAggregateEntities', contactAggregateEntities);
-    return contactAggregateEntities;
-  }
+  //   /* returns the aggregate root */
+  //   logTrace && logStop(methodName, 'contactAggregateEntities', contactAggregateEntities);
+  //   return contactAggregateEntities;
+  // }
  
  async runAsyncBusinessRule(businessRule, ruleInputs) {
     let ruleResult: any = true;

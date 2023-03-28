@@ -1,3 +1,4 @@
+import { ContactAggregate } from '../types/contact.aggregate';
 import { UpdateContactEvent } from '../../events/contact/commands';
 import { Injectable } from '@nestjs/common';
 import { CreateContactEvent } from 'src/events/contact/commands';
@@ -22,24 +23,25 @@ export class DomainChangeEventFactory {
   ) {}
   
   /**
-     * Generate a serialzied CreatedDomainEvent payload from CreateDomainEvent
+     * Generate a serialzied CreatedDomainEvent serialized payload 
      * @param createContactEvent 
      */
-  genCreatedEventFor(createContactEvent, version: number): string {
+  genCreatedEventFor(createContactEvent: CreateContactEvent, savedAggregate: ContactAggregate): string {
     const methodName = 'genCreatedEventFor'
     logTrace && logStart([methodName, 'createContactEvent', 'version'], arguments);
 
-    /* destructure properties for create contact event */
-    const  { accountId,  email, firstName, lastName } = createContactEvent.message;
-    const  { sessionId, userId } = createContactEvent.header;
+    /* destructure properties from the aggregate and the message header */
+    const { id, version, email, firstName, lastName } = savedAggregate.contact;
+    const { accountId } = savedAggregate.contactAcctRel;
+    const { sessionId, userId } = createContactEvent.header;
 
     /* default to version 1 when creating new aggregate */
-    version =  1;
+    // version =  1;
 
     /* use destructured properties to define what to include in contactCreatedEvent  */
     const contactCreatedEvent: ContactCreatedEvent = { 
       header:  { sessionId, userId },
-      message: { accountId, version, email, firstName, lastName  }
+      message: { id,  accountId, version, email, firstName, lastName  }
     }
     /* serialize event  */
     const serializedContactCreatedEvent: string = JSON.stringify(contactCreatedEvent);

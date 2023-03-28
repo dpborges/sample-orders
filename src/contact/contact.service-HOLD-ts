@@ -80,7 +80,7 @@ export class ContactService {
     updatedAggregateEntities = this.contactAggregate.applyUpdates(updateRequest, aggregateEntities)
        
     /* handle requirement for publishing domain updated event  */
-    this.prepareDomainUpdatedEvent(updateContactEvent, updatedAggregateEntities);
+    // this.prepareDomainUpdatedEvent(updateContactEvent, updatedAggregateEntities);
     
     // save changes
     let savedAggregateEntities: ContactAggregateEntities;
@@ -155,56 +155,56 @@ export class ContactService {
   // }
  
   // service used to create aggreate, then save it.
-  async create(createContactEvent: CreateContactEvent):  Promise<CreateContactResponse | BaseError> {
-    const methodName = 'create';
-    logTrace && logStart([methodName, 'createContactEvent',createContactEvent ], arguments);
+  // async create(createContactEvent: CreateContactEvent):  Promise<CreateContactResponse | BaseError> {
+  //   const methodName = 'create';
+  //   logTrace && logStart([methodName, 'createContactEvent',createContactEvent ], arguments);
 
-    const { sessionId, userId } = createContactEvent.header;
-    const { accountId, email, firstName, lastName } = createContactEvent.message;
+  //   const { sessionId, userId } = createContactEvent.header;
+  //   const { accountId, email, firstName, lastName } = createContactEvent.message;
 
-    /* reserve next outbox sequence id to use when creating aggregate instance */
-    // const nextSeqId = await this.getNextOutboxSequence();
+  //   /* reserve next outbox sequence id to use when creating aggregate instance */
+  //   // const nextSeqId = await this.getNextOutboxSequence();
 
-    /* create aggregate instance */
-    const aggregate: ContactAggregateEntities = await this.contactAggregate.createAggregate(createContactEvent);
-    console.log("This is returned contact aggregate ", aggregate);
+  //   /* create aggregate instance */
+  //   let aggregate: ContactAggregate = await this.contactAggregate.createAggregate(createContactEvent);
+  //   console.log("This is returned contact aggregate ", aggregate);
         
-    /* Create aggregate (WITHOUT outbox entity) and return aggregate entities */
-    let aggregateEntities: ContactAggregateEntities = await this.contactAggregate.idempotentCreate(aggregate);
+  //   /* Create aggregate (WITHOUT outbox entity) and return aggregate entities */
+  //   let aggregate: ContactAggregate = await this.contactAggregate.idempotentCreate(aggregate);
    
-    /* if save was NOT successful, return error response */
-    if (!aggregateEntities.contact) { return this.createAggregateError(email);  }
+  //   /* if save was NOT successful, return error response */
+  //   if (!aggregate.contact) { return this.createAggregateError(email);  }
     
-    /* pull out contactId and version, which is needed to generate Created Event  */
-    const contactId = aggregate.contact.id;
-    const version   = aggregate.contact.version;
+  //   /* pull out contactId and version, which is needed to generate Created Event  */
+  //   const contactId = aggregate.contact.id;
+  //   const version   = aggregate.contact.version;
 
-    /* strip down aggregateEntities to aggregate root, to repeat save WITH outbox. */
-    const aggregateRoot: ContactAggregateEntities = { 
-      contact: aggregateEntities.contact,
-      contactAcctRel: null
-    }
+  //   /* strip down aggregateEntities to aggregate root, to repeat save WITH outbox. */
+  //   const aggregate: ContactAggregate = { 
+  //     contact: aggregate.contact,
+  //     contactAcctRel: null
+  //   }
 
-    /* this method will add the outbox entity to the minimized aggregateRoot */ 
-    this.prepareDomainCreatedEvent(createContactEvent, aggregateRoot);
+  //   /* this method will add the outbox entity to the minimized aggregateRoot */ 
+  // //   this.prepareDomainCreatedEvent(createContactEvent, aggregate);
 
-    //  /* run save aggregate again (WITH outbox entity) and return aggregate entities */
-    //  let aggregateEntities: ContactAggregateEntities = await this.contactAggregate.idempotentCreate(aggregateRoot, nextSeqId);
-    //  /* if save was NOT successful, return error response */
-    //  if (!aggregateEntities.contact) { 
-    //   console.log(`WARNING: `)
-    // }
+  // //   //  /* run save aggregate again (WITH outbox entity) and return aggregate entities */
+  // //   //  let aggregateEntities: ContactAggregateEntities = await this.contactAggregate.idempotentCreate(aggregateRoot, nextSeqId);
+  // //   //  /* if save was NOT successful, return error response */
+  // //   //  if (!aggregateEntities.contact) { 
+  // //   //   console.log(`WARNING: `)
+  // //   // }
     
-    /* Sends command to outbox to publish unpublished events in outbox for a given account */
-    const cmdResult: any = await this.domainChangeEventManager.triggerOutboxForAccount(accountId)
+  // //   /* Sends command to outbox to publish unpublished events in outbox for a given account */
+  //   const cmdResult: any = await this.domainChangeEventManager.triggerOutboxForAccount(accountId)
 
-    /* create response object using aggregateRoot.id */
-    const { contact } = aggregateEntities;
-    let createContactResponse: CreateContactResponse = new CreateContactResponse(contact.id);
+  // //   /* create response object using aggregateRoot.id */
+  //   const { contact } = aggregateEntities;
+  //   let createContactResponse: CreateContactResponse = new CreateContactResponse(contact.id);
 
-    logTrace && logStop(methodName, 'createContactResponse', createContactResponse);
-    return createContactResponse;
-  }
+  //   logTrace && logStop(methodName, 'createContactResponse', createContactResponse);
+  //   return createContactResponse;
+  // }
 
   /**
    * Prepares the event and the outbox instance to publish a domain created event.
@@ -212,35 +212,35 @@ export class ContactService {
    * @param createContactEvent 
    * @param aggregate 
    */
-  async prepareDomainCreatedEvent(
-    createContactEvent: CreateContactEvent, 
-    aggregate: ContactAggregateEntities)
-  {
-    const methodName = 'prepareDomainCreatedEvent';
-    logTrace && logStart([methodName, 'createContactEvent','aggregate'], arguments);
-    /* If flag is disabled to publish domain change events, return */
-    if (!this.domainChangeEventsEnabled) {  
-      return;  
-    } 
-    /* extract version from aggregate to pass down to include in domainCreated event */
-    const contact = aggregate.contact;
-    const version: number = contact.version;
+  // async prepareDomainCreatedEvent(
+  //   createContactEvent: CreateContactEvent, 
+  //   aggregate: ContactAggregate)
+  // {
+  //   const methodName = 'prepareDomainCreatedEvent';
+  //   logTrace && logStart([methodName, 'createContactEvent','aggregate'], arguments);
+  //   /* If flag is disabled to publish domain change events, return */
+  //   if (!this.domainChangeEventsEnabled) {  
+  //     return;  
+  //   } 
+  //   /* extract version from aggregate to pass down to include in domainCreated event */
+  //   const contact = aggregate.contact;
+  //   const version: number = contact.version;
 
-    /* create serialized contactCreatedEvent */
-    const serializedContactCreatedEvent = this.domainChangeEventFactory.genCreatedEventFor(
-      createContactEvent, version
-    );
+  //   /* create serialized contactCreatedEvent */
+  //   const serializedContactCreatedEvent = this.domainChangeEventFactory.genCreatedEventFor(
+  //     createContactEvent, aggregate
+  //   );
   
-    /* create Outbox Instance of contactCreatedEvent, from createContactEvent */
-    let contactOutboxInstance: ContactOutbox = await this.outboxService.generateContactCreatedInstances(
-          createContactEvent, 
-          serializedContactCreatedEvent
-        );
+  //   /* create Outbox Instance of contactCreatedEvent, from createContactEvent */
+  //   let contactOutboxInstance: ContactOutbox = await this.outboxService.createContactCreatedInstance(
+  //         createContactEvent, 
+  //         serializedContactCreatedEvent
+  //       );
 
-    logTrace && logStop(methodName, 'contactOutboxInstance',contactOutboxInstance);
-    /* append instance to the aggregate  */
-    aggregate.contactOutbox = contactOutboxInstance;
-  }
+  //   logTrace && logStop(methodName, 'contactOutboxInstance',contactOutboxInstance);
+  //   /* append instance to the aggregate  */
+  //   aggregate.contactOutbox = contactOutboxInstance;
+  // }
 
   /**
    * Prepares the event and the outbox instance to publish a domain updated event.
@@ -248,45 +248,45 @@ export class ContactService {
    * @param createContactEvent 
    * @param aggregate 
    */
-  async prepareDomainUpdatedEvent(
-    updateContactEvent: UpdateContactEvent, 
-    aggregate: ContactAggregateEntities) 
-  {
-    const methodName = 'prepareDomainUpdatedEvent';
-    logTrace && logStart([methodName, 'updateContactEvent','aggregate'], arguments);
-    /* If flag is disabled to publish domain updated events, return */
-    if (!this.domainChangeEventsEnabled) {  
-      return;  
-    } 
+  // async prepareDomainUpdatedEvent(
+  //   updateContactEvent: UpdateContactEvent, 
+  //   aggregate: ContactAggregateEntities) 
+  // {
+  //   const methodName = 'prepareDomainUpdatedEvent';
+  //   logTrace && logStart([methodName, 'updateContactEvent','aggregate'], arguments);
+  //   /* If flag is disabled to publish domain updated events, return */
+  //   if (!this.domainChangeEventsEnabled) {  
+  //     return;  
+  //   } 
 
-    /* extract version from aggregate to pass down to include in updatedConsumerEvent */
-    const contact = aggregate.contact;
-    const version: number = contact.version;
+  //   /* extract version from aggregate to pass down to include in updatedConsumerEvent */
+  //   const contact = aggregate.contact;
+  //   const version: number = contact.version;
 
-    /* create serialized contactCreatedEvent */
-    const serializedContactUpdatedEvent = this.domainChangeEventFactory.genUpdatedEventFor(updateContactEvent, version);
+  //   /* create serialized contactCreatedEvent */
+  //   const serializedContactUpdatedEvent = this.domainChangeEventFactory.genUpdatedEventFor(updateContactEvent, version);
 
-    /* create Outbox Instance of contactCreatedEvent, from createContactEvent */
-    let contactOutboxInstance: ContactOutbox = await this.outboxService.generateContactUpdatedInstances(
-          updateContactEvent, 
-          serializedContactUpdatedEvent
-        );
-    /* append instance to the aggregate  */
-    logTrace && logStop(methodName, 'contactOutboxInstance',contactOutboxInstance);
-    aggregate.contactOutbox = contactOutboxInstance;
-  }
+  //   /* create Outbox Instance of contactCreatedEvent, from createContactEvent */
+  //   let contactOutboxInstance: ContactOutbox = await this.outboxService.generateContactUpdatedInstances(
+  //         updateContactEvent, 
+  //         serializedContactUpdatedEvent
+  //       );
+  //   /* append instance to the aggregate  */
+  //   logTrace && logStop(methodName, 'contactOutboxInstance',contactOutboxInstance);
+  //   aggregate.contactOutbox = contactOutboxInstance;
+  // }
 
   // *****************************************************************
   // Helper methods
   // *****************************************************************
 
-  async getNextOutboxSequence() {
-     // get query that joins the 3 tables
-     let sqlStatement = "SELECT NEXTVAL('contact_id_seq')";
-     const sqlResult = await this.dataSource.query(sqlStatement);
-     const nextSeqNum = sqlResult[0].nextval;
-     return nextSeqNum;
-  }
+  // async getNextOutboxSequence() {
+  //    // get query that joins the 3 tables
+  //    let sqlStatement = "SELECT NEXTVAL('contact_id_seq')";
+  //    const sqlResult = await this.dataSource.query(sqlStatement);
+  //    const nextSeqNum = sqlResult[0].nextval;
+  //    return nextSeqNum;
+  // }
 
   createAggregateError(email) {
     let createError = new ServerError(500);

@@ -6,9 +6,9 @@ import { NatsJetStreamTransport } from '@nestjs-plugins/nestjs-nats-jetstream-tr
 import { NatsJetStreamClient } from '@nestjs-plugins/nestjs-nats-jetstream-transport';
 import { CustomNatsClient } from './custom.nats.client.service';
 import { contactRepositories } from './contact/repos/contact.repositories';
-import { ContactService } from './contact/contact.service';
-import { ContactAggregate } from './contact/aggregate-types/contact.aggregate';
-import { ContactSaveService } from './contact/contact.save.service';
+// import { ContactService } from './contact/contact.service';
+// import { ContactAggregate } from './contact/aggregate-types/contact.aggregate';
+// import { ContactSaveService } from './contact/contact.save.service';
 import { OutboxService } from './outbox/outbox.service';
 import { DomainChangeEventPublisher } from './outbox/domainchange.event.publisher';
 import { ConfigModule } from '@nestjs/config';
@@ -18,7 +18,7 @@ import { ContactServiceLatest } from './contact/services/contact.service.latest'
 import { CreateContactSaga } from './contact/sagas/create.contact.saga';
 import { ContactAggregateService } from './contact/services/contact.aggregate.service';
 import { CreateContactTransaction } from './contact/transactions';
-import { SaveOutboxTransaction } from './outbox/transactions/save.outbox.transaction';
+// import { SaveOutboxTransaction } from './outbox/transactions/save.outbox.transaction';
 
 
 @Module({
@@ -40,9 +40,9 @@ import { SaveOutboxTransaction } from './outbox/transactions/save.outbox.transac
       AppService,
       NatsJetStreamClient, 
       CustomNatsClient,
-      ContactAggregate,
-      ContactService,
-      ContactSaveService,
+      // ContactAggregate,
+      // ContactService,
+      // ContactSaveService,
       OutboxService,
       DomainChangeEventFactory,
       DomainChangeEventPublisher,
@@ -50,8 +50,8 @@ import { SaveOutboxTransaction } from './outbox/transactions/save.outbox.transac
       ContactServiceLatest,
       CreateContactSaga,
       ContactAggregateService,
-      CreateContactTransaction,
-      SaveOutboxTransaction
+      CreateContactTransaction
+      // SaveOutboxTransaction
   ],
 })
 export class AppModule {}
