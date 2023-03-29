@@ -11,7 +11,9 @@ import { RepoToken } from './db-providers/repo.token.enum';
 import { Contact } from './contact/entities/contact.entity';
 import { UpdateEventStatusCmdPayload } from './outbox/events/commands';
 import { OutboxCommands } from './outbox/events/commands';
+import { logStart, logStop } from './utils/trace.log'
 
+const logTrace = true;
 
 @Injectable()
 export class AppService {
@@ -23,14 +25,18 @@ export class AppService {
   ) {}
 
   /* This method would be on the event consumer. The consumer should update the event status
-     pending when received event and then completed when sucessfully consumed event on server side */
+     to pending when receiving the event and then set to completed when sucessfully 
+     processed event on server side */
   async updateEventStatus(outboxId: number, status: string) {
+    const methodName = 'updateEventStatus';
+    logTrace && logStart([methodName, 'outboxId', 'status'], arguments)
 
     const commandPayload: UpdateEventStatusCmdPayload = { outboxId, status }
     const commandResult = await this.customNatsClient.sendCommand(
       OutboxCommands.updateStatus, commandPayload
     );
-    
+
+    logTrace && logStop(methodName, 'commandResult', commandResult)
   }
 
   

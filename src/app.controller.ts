@@ -3,9 +3,9 @@ import { CreateContactResponse } from './contact/responses/create.contact.respon
 // import { genBeforeAndAfterImage } from 'src/utils/gen.beforeAfter.image';
 // import { ContactAggregateEntities } from './contact/aggregate-types/contact.aggregate.type';
 // import { EventStatusUpdater } from './outbox/event.status.updater';
-// import { OutboxStatus } from './outbox/outbox.status.enum';
-// import { OutboxService } from './outbox/outbox.service';
-// import { PublishUnpublishedEventsCmdPayload } from './outbox/events/commands';
+import { OutboxStatus } from './outbox/outbox.status.enum';
+import { OutboxService } from './outbox/outbox.service';
+import { PublishUnpublishedEventsCmdPayload } from './outbox/events/commands';
 import { NatsJetStreamContext } from '@nestjs-plugins/nestjs-nats-jetstream-transport';
 import { Controller, Get, UseFilters } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
@@ -27,11 +27,11 @@ import { Contact } from './contact/entities/contact.entity';
 // import { DomainMgtService } from './domain-mgt/domain-mgt.service';
 // import { ContactService } from './contact/contact.service';
 import { ContactCommand } from './events/contact/commands';
-// import { OutboxCommands } from './outbox/events/commands';
+import { OutboxCommands } from './outbox/events/commands';
 import { CreateContactEvent } from './events/contact/commands';
 // import { ContactQueries } from './events/contact/queries';
 // import { QueryContactByIdPayload } from './events/contact/queries';
-// import { ContactCreatedEvent } from './events/contact/domainChanges';
+import { ContactCreatedEvent } from './events/contact/domainChanges';
 // import { UpdateEventStatusCmdPayload } from './outbox/events/commands';
 // import { DomainChangeEventManager } from './outbox/domainchange.event.manager';
 // import { ContactAggregate } from './contact/aggregate-types/contact.aggregate';
@@ -39,7 +39,7 @@ import { CreateContactEvent } from './events/contact/commands';
 import { ServerError } from './common/errors/server/server.error';
 // import { UpdateContactResponse } from './contact/responses/update.contact.response';
 import { ContactUpdatedEvent } from './events/contact/domainChanges';
-// import { logStart, logStop, logStartVal } from './utils/trace.log';
+import { logStart, logStop, logStartVal } from './utils/trace.log';
 import { ClientErrorReasons, ClientError } from './common/errors';
 import { ContactAggregate } from './contact/types/contact.aggregate';
 import { ContactServiceLatest } from './contact/services/contact.service.latest';
@@ -56,7 +56,7 @@ export class AppController {
     private readonly contactServiceLatest: ContactServiceLatest,
     // private readonly contactAggregate: ContactAggregate
     // private readonly contactService: ContactService,
-    // private readonly outboxService:  OutboxService,
+    private readonly outboxService:  OutboxService,
     // private readonly eventStatusUpdater: EventStatusUpdater,
     // private readonly domainChangeEventManager: DomainChangeEventManager
     ) {}
@@ -202,19 +202,19 @@ export class AppController {
    * @param context - standard Nats Jetstream context
    * @returns void
    */
-  // @ExecuteCommand(OutboxCommands.publishUnpublishedEvents)
-  // async publishUnpublishedEvents(
-  //   @Payload() data: PublishUnpublishedEventsCmdPayload,
-  //   @Ctx() context: NatsJetStreamContext
-  // ): Promise<any> {
-  //   const subject = context.message.subject;
-  //   const headers = context.message.headers;
-  //   console.log(`MS - Received command ${OutboxCommands.publishUnpublishedEvents} on Outbox command handler`);
-  //   console.log('MS - ....with payload', data);
-  //   const cmdResult: any = this.outboxService.publishUnpublishedEvents(data)
+  @ExecuteCommand(OutboxCommands.publishUnpublishedEvents)
+  async publishUnpublishedEvents(
+    @Payload() data: PublishUnpublishedEventsCmdPayload,
+    @Ctx() context: NatsJetStreamContext
+  ): Promise<any> {
+    const subject = context.message.subject;
+    const headers = context.message.headers;
+    console.log(`MS - Received command ${OutboxCommands.publishUnpublishedEvents} on Outbox command handler`);
+    console.log('MS - ....with payload', data);
+    const cmdResult: any = this.outboxService.publishUnpublishedEvents(data)
     
-  //   return `Processed command ${OutboxCommands.publishUnpublishedEvents}`;
-  // }
+    return `Processed command ${OutboxCommands.publishUnpublishedEvents}`;
+  }
 
   // @ExecuteCommand(OutboxCommands.updateStatus)
   // async updateOutboxStatus(
@@ -239,36 +239,36 @@ export class AppController {
   // @EventPattern('order.created')
 
   // Mock Listener for ContactCreated Event and updates event status in outbox
-  // @ListenForEvent(Subjects.ContactCreated)
-  // public async contactCreatedHandler(
-  //   @Ctx()  context: NatsJetStreamContext,
-  //   @Payload() contactCreatedEvent: ContactCreatedEvent) 
-  // {
-  //   const methodName = 'contactCreatedHandler';
-  //   logTrace && logStartVal(methodName, 'contactCreatedEvent', JSON.stringify(contactCreatedEvent));
+  @ListenForEvent(Subjects.ContactCreated)
+  public async contactCreatedHandler(
+    @Ctx()  context: NatsJetStreamContext,
+    @Payload() contactCreatedEvent: ContactCreatedEvent) 
+  {
+    const methodName = 'contactCreatedHandler';
+    logTrace && logStartVal(methodName, 'contactCreatedEvent', JSON.stringify(contactCreatedEvent));
    
-  //   const { header, message } = contactCreatedEvent;
-  //   const { outboxId } = header;
-  //   const { accountId, email, firstName, lastName } = message;
+    const { header, message } = contactCreatedEvent;
+    const { outboxId } = header;
+    const { accountId, email, firstName, lastName } = message;
     
-  //   /* Update event status to pending via service (request/reply) */
-  //   await this.appService.updateEventStatus(outboxId, OutboxStatus.pending)
+    /* Update event status to pending via service (request/reply) */
+    await this.appService.updateEventStatus(outboxId, OutboxStatus.pending)
 
-  //   /* Handle event here  */
-  //   const successfullyProcessed = () => true;
+    /* Handle event here  */
+    const successfullyProcessed = true;
 
-  //   if (successfullyProcessed) {
-  //     /* Update event status to processed  */
-  //     await this.appService.updateEventStatus(outboxId, OutboxStatus.processed)
+    if (successfullyProcessed) {
+      /* Update event status to processed  */
+      await this.appService.updateEventStatus(outboxId, OutboxStatus.processed)
 
-  //     /* acknowledge message */
-  //     context.message.ack();  
-  //   }
+      /* acknowledge message */
+      context.message.ack();  
+    }
     
-  //   logTrace && logStop(methodName, 'subject',  `${context.message.subject} processed`);
-  // }
+    logTrace && logStop(methodName, 'subject',  `${context.message.subject} processed`);
+  }
 
- //  Mock Listener for ContactUpdated Event and updates event status in outbox
+  //  Mock Listener for ContactUpdated Event and updates event status in outbox
   // @ListenForEvent(Subjects.ContactUpdated)
   // public async contactUpdatedHandler(
   //   @Ctx()  context: NatsJetStreamContext,
