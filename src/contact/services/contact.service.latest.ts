@@ -26,6 +26,8 @@ import { BaseError, ClientError } from '../../common/errors';
 import { ServerError, ServerErrorReasons, ClientErrorReasons } from '../../common/errors/';
 import { BaseResponse } from '../../common/responses/base.response';
 import { CreateContactSaga } from '../sagas/create.contact.saga';
+import { UpdateContactSaga } from '../sagas';
+import { ContactQueryService } from '../dbqueries/services';
 const logTrace = true;
 
 @Injectable()
@@ -37,14 +39,16 @@ export class ContactServiceLatest {
 
   constructor(
     private createContactSaga: CreateContactSaga,
+    private updateContactSaga: UpdateContactSaga,
     private contactAggregateService: ContactAggregateService,
     private customNatsClient: CustomNatsClient,
     private configService: ConfigService,
     private outboxService: OutboxService,
     private domainChangeEventFactory: DomainChangeEventFactory,
     private domainChangeEventManager: DomainChangeEventManager, 
+    private contactQueryService: ContactQueryService,
     // private contactSaveService: ContactSaveService,
-    @Inject(RepoToken.DATA_SOURCE) private dataSource: DataSource
+    // @Inject(RepoToken.DATA_SOURCE) private dataSource: DataSource
     // @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
   ) {
     /* set domainChangeEventsEnabled flag */
@@ -171,6 +175,13 @@ export class ContactServiceLatest {
 
     const { header, message } = createContactEvent;
 
+    /* Check if contact exists, if so, return 409 conflict(duplicate) error  */
+    const { accountId, email } = message;
+    const contactExists = await this.contactQueryService.checkContactExistsByEmail(accountId, email);
+    if (contactExists) {
+      return this.duplicateContactError(email);
+    }
+
     /* Run the create contact saga */
     const aggregate: ContactAggregate = await this.createContactSaga.execute(createContactEvent);
         
@@ -187,6 +198,31 @@ export class ContactServiceLatest {
 
     logTrace && logStop(methodName, 'createContactResponse', createContactResponse);
     return createContactResponse;
+  }
+
+  /**
+   * Update contact aggregate using UpdateContactSaga
+   * @param updateContactEvent 
+   */
+  async updateContact(updateContactEvent: UpdateContactEvent): Promise<any> {
+    // const methodName = 'updateContact';
+    // logTrace && logStart([methodName, 'updateContactEvent',updateContactEvent ], arguments);
+
+    const { header, message } = updateContactEvent; 
+    const { id, accountId, ...updateProperties }  = message; 
+
+    /* If contact does not exists, return 404 error */
+    const contactExists = await this.contactQueryService.checkContactExistsById(accountId, id);
+    console.log("contactExists var ", contactExists)
+    if (!contactExists) {
+      return this.notFoundContactError(id)
+    }
+
+    /* Execute update contact saga */
+    const result: any = await this.updateContactSaga.execute(updateContactEvent)
+
+    // logTrace && logStop(methodName, 'createContactResponse', createContactResponse);
+    return result;
   }
 
   /**
@@ -250,7 +286,7 @@ export class ContactServiceLatest {
     const serializedContactUpdatedEvent = this.domainChangeEventFactory.genUpdatedEventFor(updateContactEvent, version);
 
     /* create Outbox Instance of contactCreatedEvent, from createContactEvent */
-    let contactOutboxInstance: ContactOutbox = await this.outboxService.generateContactUpdatedInstances(
+    let contactOutboxInstance: ContactOutbox = await this.outboxService.generateContactUpdatedInstance(
           updateContactEvent, 
           serializedContactUpdatedEvent
         );
@@ -263,13 +299,13 @@ export class ContactServiceLatest {
   // Helper methods
   // *****************************************************************
 
-  async getNextOutboxSequence() {
-     // get query that joins the 3 tables
-     let sqlStatement = "SELECT NEXTVAL('contact_id_seq')";
-     const sqlResult = await this.dataSource.query(sqlStatement);
-     const nextSeqNum = sqlResult[0].nextval;
-     return nextSeqNum;
-  }
+  // async getNextOutboxSequence() {
+  //    // get query that joins the 3 tables
+  //    let sqlStatement = "SELECT NEXTVAL('contact_id_seq')";
+  //    const sqlResult = await this.dataSource.query(sqlStatement);
+  //    const nextSeqNum = sqlResult[0].nextval;
+  //    return nextSeqNum;
+  // }
 
   createAggregateError(email) {
     let createError = new ServerError(500);
@@ -277,6 +313,18 @@ export class ContactServiceLatest {
     createError.setReason(`failed to create contact with email:${email} `);
     return createError;
   }
-  
 
+  duplicateContactError(email) {
+    const duplicateError = new ClientError(409); /* this sets generic message */
+    duplicateError.setReason(ClientErrorReasons.DuplicateEntry);
+    duplicateError.setLongMessage(`contact with email '${email}' already exists`);
+    return duplicateError;
+  }
+
+  notFoundContactError(id) {
+    const duplicateError = new ClientError(404); /* this sets generic message */
+    // duplicateError.setReason(ClientErrorReasons.KeysNotInDatabase);
+    duplicateError.setLongMessage(`contact id '${id}'`);
+    return duplicateError;
+  }
 }

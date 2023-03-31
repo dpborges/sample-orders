@@ -35,6 +35,10 @@ export class ClientError extends BaseError {
         this.setStatusCode(404);
         this.setMessage("Resource Not Found");
         break;
+      case 409:
+        this.setStatusCode(409);
+        this.setMessage("Conflict");
+        break;
       default:
     }
   }

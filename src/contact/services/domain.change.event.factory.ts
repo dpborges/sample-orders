@@ -64,9 +64,6 @@ export class DomainChangeEventFactory {
     const  { sessionId, userId } = updateContactEvent.header;
     const  { id, accountId, ...updateProperties } = updateContactEvent.message;
 
-    /* increment version */
-    version = version + 1;
-
     /* use destructured properties to define what to include in updatedEvent  */
     const contactUpdatedEvent: ContactUpdatedEvent = { 
       header:  { sessionId, userId },

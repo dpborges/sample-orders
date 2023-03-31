@@ -93,11 +93,11 @@ export class OutboxService {
 
   /* generates the contactUpdatedEvent and return an outbox entity instance
      to the contact service to ultimately save it with the aggregate save transaction   */
-  generateContactUpdatedInstances(
+  generateContactUpdatedInstance(
       updateContactEvent: UpdateContactEvent,
       serializedEventPayload:  string
     ): ContactOutbox {
-    console.log(">>> Inside OutboxService.generateDomainCreatedInstances ")
+    console.log(">>> Inside OutboxService.generateContactUpdatedInstance ")
     // console.log("    contactCreatedEvent ",  createContactEvent);
     const { userId }    = updateContactEvent.header;
     const { accountId } = updateContactEvent.message;

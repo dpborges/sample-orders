@@ -33,6 +33,10 @@ export class DomainChangeEventManager {
     }
   }
 
+  /**
+   * Updates status on contact utbox repository
+   * @param updateEventStatusCmdPayload 
+   */
   async updateStatus(updateEventStatusCmdPayload: UpdateEventStatusCmdPayload): Promise<void> {
     let { outboxId, status } = updateEventStatusCmdPayload;
     

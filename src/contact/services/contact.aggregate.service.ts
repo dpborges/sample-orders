@@ -119,12 +119,8 @@ export class ContactAggregateService  {
       contactAcctRel: null
     };
     
-    // Define where clause using database syntax (not camelcase)
-    let selectCriteria = `account_id = ${accountId} and contact.id = ${id}`;
-    let whereClause = 'WHERE ' + selectCriteria;
-    
     // get query that joins the 3 tables
-    let sqlStatement = getContactByAcctAndId(whereClause); /* defaults to joining 3 tables */
+    let sqlStatement = getContactByAcctAndId(accountId, id); /* defaults to joining 3 tables */
 
     // Execute query
     const contactArray = await this.dataSource.query(sqlStatement);

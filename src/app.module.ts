@@ -1,3 +1,4 @@
+import { UpdateContactSaga } from './contact/sagas/update.contact.saga';
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from './db-providers/database.module';
 import { AppController } from './app.controller';
@@ -18,6 +19,7 @@ import { ContactServiceLatest } from './contact/services/contact.service.latest'
 import { CreateContactSaga } from './contact/sagas/create.contact.saga';
 import { ContactAggregateService } from './contact/services/contact.aggregate.service';
 import { CreateContactTransaction } from './contact/transactions';
+import { ContactQueryService } from './contact/dbqueries/services/contact.query.service';
 // import { SaveOutboxTransaction } from './outbox/transactions/save.outbox.transaction';
 
 
@@ -50,7 +52,9 @@ import { CreateContactTransaction } from './contact/transactions';
       ContactServiceLatest,
       CreateContactSaga,
       ContactAggregateService,
-      CreateContactTransaction
+      CreateContactTransaction,
+      ContactQueryService,
+      UpdateContactSaga
       // SaveOutboxTransaction
   ],
 })

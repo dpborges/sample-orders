@@ -10,8 +10,8 @@ export class BaseError {
 
   statusCode:  number;
   message:     string;  /* generic message like 'Bad Request' */
-  longMessage: string;
-  reason:      string;
+  reason:      string;  /* uses Reasons enum to provide a reason for the bad request */
+  longMessage: string;  /* elaborate on reason, provide  solution, or a link to documentation */
 
   /* if a constructor parm not provided, use setter methods to set properties */
   constructor(statusCodeOrMessage: string | number ) {
@@ -22,9 +22,15 @@ export class BaseError {
       this.setErrorProperties(statusCode); /* expects this method to be defined in subclass */
     } 
   }
-  
+ 
+  /* This method can be overriden in subclass and the status code would return 
+     a predefined error object based on the given code */
+  setStatusCode(code: number) {
+    this.statusCode = code;
+  }
+
   /**
-   * Provides generic message; Default values can be provided in error subclass for 
+   * Provides a generic message. Default values can be provided in error subclass for 
    * given status code.
    * @param msg 
    */
@@ -32,12 +38,8 @@ export class BaseError {
     this.message = msg;
   }
 
-  setStatusCode(code: number) {
-    this.statusCode = code;
-  }
-
-  /** Appends to message property to provide more specific reason for the generic error 
-   *  code. This is called first,followed by setLongMessage, so reading flows better.
+  /** Appends to message property a more specific reason for the generic error 
+   *  provided in message property. This should be called after message has been set.
    *  Note that this method returns this, which allows you to chain a the 
    *  setLongMessage() method. 
    */

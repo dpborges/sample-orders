@@ -1,3 +1,5 @@
+import { Repository, DataSource } from 'typeorm';
+import { RepoToken } from '../../db-providers/repo.token.enum';
 import { ContactOutbox } from '../../outbox/entities/contact.outbox.entity';
 import { CreateContactEvent } from '../../events/contact/commands';
 import { OutboxService } from '../../outbox/outbox.service';
@@ -8,11 +10,13 @@ import { ConfigService } from '@nestjs/config';
 import { Injectable, Inject } from '@nestjs/common';
 import { ContactAggregateService } from '../services/contact.aggregate.service';
 import { DomainChangeEventManager } from '../../outbox/domainchange.event.manager';
-import { process } from './create.contact.saga.process';
+import { createContactProcess } from './create.contact.saga.process';
+import { getContactByAcctAndEmail } from '../dbqueries';
 import { 
   isStepsSuccessful, getSagaResult, 
-  updateProcessStatus, setRollbackTriggered 
+  updateProcessStatus, setRollbackTrigger 
 } from './helpers';
+import { ContactQueryService } from '../dbqueries/services/contact.query.service';
 import { logStart, logStop } from '../../utils/trace.log';
 import { StepResult } from './types/step.result';
 
@@ -23,7 +27,7 @@ const logTrace = false;
 // processStatus property set. The resultant data and updated process is passed to the 
 // next step. This repeats itself for every step there after.
 // If one of the steps finds that a previous step(s) failed, it may call for a rollback.
-// This step is known as an inflection point. All subsequent steps after the inflection
+// This step is known as an pivot point. All subsequent steps after the inflection
 // point must check if rollback was triggered. If so, each subsequent step must return 
 // null data, set step success to false, and leave the rollbackTriggered flag set. 
 // ************************************************************************************
@@ -37,7 +41,9 @@ export class CreateContactSaga {
     private domainChangeEventFactory: DomainChangeEventFactory,
     private domainChangeEventManager: DomainChangeEventManager,
     private outboxService: OutboxService,
-    private configService: ConfigService
+    private configService: ConfigService,
+    private contactQueryService: ContactQueryService,
+    @Inject(RepoToken.DATA_SOURCE) private dataSource: DataSource
   ) {}
  
   //***************************************************************************** */
@@ -49,49 +55,57 @@ export class CreateContactSaga {
     ): Promise<any> {
 
     // Initialize process object and step result object
-    let createContactProcess = { ...process }; /* clone process definition*/
+    let createProcess = { ...createContactProcess }; /* clone process definition*/
     let result: StepResult = { data: null, processStatus: null }
 
     // INITIATE SAGA PROCESS
     // =============================================================================
+    // STEP 0: CHECK IF CONTACT EXISTS, if so, about saga process.
+    // result = await this.createAggregate(createContactProcess, createContactEvent); /* returns the aggregate */
+    // const contactAggregate = result.data;
+    // createContactProcess = result.processStatus;
+
+    // =============================================================================
     // STEP 1: CREATE AGGREGATE from the CreateContactEvent payload; 
-    result = await this.createAggregate(createContactProcess, createContactEvent); /* returns the aggregate */
+    result = await this.createAggregate(createProcess, createContactEvent); /* returns the aggregate */
     const contactAggregate = result.data;
-    createContactProcess = result.processStatus;
+    createProcess = result.processStatus;
 
     // =============================================================================
     // STEP 2: SAVE AGGREGATE
-    result = await this.saveAggregate(createContactProcess, contactAggregate);
+    result = await this.saveAggregate(createProcess, contactAggregate);
     const savedAggregate = result.data;
-    createContactProcess = result.processStatus;
+    createProcess = result.processStatus;
 
     // =============================================================================
     // STEP 3: GENERATE CREATED EVENT; if domainChange events 
-    result = await this.generateCreatedEvent(createContactProcess, createContactEvent, savedAggregate);
+    result = await this.generateCreatedEvent(createProcess, createContactEvent, savedAggregate);
     let serializedCreatedEvent = result.data 
-    createContactProcess = result.processStatus
+    createProcess = result.processStatus
+
+    console.log("createProcess" ,createProcess)
 
     // =============================================================================
     // STEP 4: CREATE OUTBOX INSTANCE: If domainChange events are disabled, 
-    result = await this.createOutboxInstance(createContactProcess, createContactEvent, serializedCreatedEvent);
+    result = await this.createOutboxInstance(createProcess, createContactEvent, serializedCreatedEvent);
     let outboxInstance = result.data; 
-    createContactProcess = result.processStatus;
+    createProcess = result.processStatus;
 
     // =============================================================================
     // STEP 5: SAVE OUTBOX
-    result = await this.saveOutbox(createContactProcess, outboxInstance);
+    result = await this.saveOutbox(createProcess, outboxInstance);
     let savedOutboxInstance = result.data; 
-    createContactProcess = result.processStatus;
+    createProcess = result.processStatus;
   
     // =============================================================================
     // STEP 6: TRIGGER OUTBOX 
-    result = await this.triggerOutbox(createContactProcess, savedAggregate.contact.accountId);
+    result = await this.triggerOutbox(createProcess, savedAggregate.contact.accountId);
     let publishingCmdResult = result.data; 
-    createContactProcess = result.processStatus;
+    createProcess = result.processStatus;
 
     // =============================================================================
     // FINALIZE STEP: LOG ERROR if saga was not successful
-    const sagaResult = getSagaResult(createContactProcess);
+    const sagaResult = getSagaResult(createProcess);
     const { sagaSuccessful, sagaFailureReason } = sagaResult;
     if (!sagaSuccessful) {
       console.log("ERROR ",JSON.stringify(sagaResult,null,2))
@@ -204,8 +218,10 @@ export class CreateContactSaga {
     /* Intialize result object */
     let result: StepResult = { data: null, processStatus: null };
 
+    console.log("Process before isStepsSuccessful ", JSON.stringify(processStatus,null,2))
+
     /* Check prior step status */
-    let previousStepsSuccessful = isStepsSuccessful(['step1', 'step2', 'step3'], process);
+    let previousStepsSuccessful = isStepsSuccessful(['step1', 'step2', 'step3'], processStatus);
 
     /* Business Logic: create Outbox Instance of contactCreatedEvent, from createContactEvent */
     let contactOutboxInstance = null;
@@ -228,7 +244,7 @@ export class CreateContactSaga {
   }
   
   /**
-   * Save Outbox: this is an inflection point (see definition on top of file).
+   * Save Outbox: this is know as a pivot point (see definition on top of file).
    * @param processStatus 
    * @param contactOutboxInstance 
    * @returns 
@@ -248,7 +264,7 @@ export class CreateContactSaga {
     };
 
     /* Business Logic: If no prior failures, save outbox */
-    let previousStepsSuccessful = isStepsSuccessful(['step1', 'step2', 'step3', 'step4'], process);
+    let previousStepsSuccessful = isStepsSuccessful(['step1', 'step2', 'step3', 'step4'], processStatus);
     if (previousStepsSuccessful) {
       savedOutboxInstance = await this.outboxService.saveOutboxInstance(contactOutboxInstance)
       if (savedOutboxInstance) { /* if outbox saved, set update result data and processStatus  */
@@ -261,7 +277,7 @@ export class CreateContactSaga {
     if (!previousStepsSuccessful || !savedOutboxInstance) {      
       const rollbackMethods = [this.rollbackSaveAggregate];
       await this.rollbackSaga(rollbackMethods)
-      processStatus = setRollbackTriggered(processStatus)
+      processStatus = setRollbackTrigger(processStatus)
     }
     
     /* return result */
@@ -280,7 +296,7 @@ export class CreateContactSaga {
     const cmdResult: any = await this.domainChangeEventManager.triggerOutboxForAccount(accountId);
 
     /* update process status */
-    processStatus = setRollbackTriggered(processStatus)
+    processStatus = setRollbackTrigger(processStatus)
 
     /* return result */
     result = { data: cmdResult, processStatus }
@@ -341,7 +357,7 @@ export class CreateContactSaga {
     if (domainChangeEventsEnabled === 'true' )  { return true;  } 
     if (domainChangeEventsEnabled === 'false' )  { return false; } 
   }
-  
+
   /**
    * Used as last step of the Saga to log an error if it occurred
    * @param processStatus 

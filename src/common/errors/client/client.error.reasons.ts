@@ -8,7 +8,8 @@ export enum ClientErrorReasons {
   UnexpectedResponse = 'Unexpected Response',
   TooLarge   = 'Size to large',
   InvalidRequest    = 'Request Invalid',
-  KeysNotInDatabase  = 'keys provided not found in database'
+  KeysNotInDatabase  = 'Keys provided not found in database',
+  DuplicateEntry     = 'Duplicate Entry'
 }
 
 /* Specified in setLongMessage. Provide explanation, solution, or link for more info  */

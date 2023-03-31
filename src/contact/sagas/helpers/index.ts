@@ -3,7 +3,7 @@ import { getSagaResult } from './get.saga.result';
 import { getFirstFailedStep } from './get.first.failed.step';
 import { getStepStatus } from './get.step.status';
 import { updateProcessStatus } from './update.process.status';
-import { setRollbackTriggered } from './set.rollback.triggered';
+import { setRollbackTrigger } from './set.rollback.trigger';
 
 export {
   isStepsSuccessful,
@@ -11,5 +11,5 @@ export {
   getSagaResult,
   getFirstFailedStep,
   getStepStatus,
-  setRollbackTriggered
+  setRollbackTrigger
 }
