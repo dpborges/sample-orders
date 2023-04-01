@@ -21,6 +21,8 @@ import { contactAcctSql } from '../dbqueries';
 import { getContactByAcctAndId } from '../dbqueries';
 import { CreateContactTransaction } from '../transactions';
 import { genBeforeAndAfterImage } from '../../utils/gen.beforeAfter.image';
+import { DeleteTransactionResult } from '../transactions/types/delete.transaction.result';
+import { DeleteContactTransaction } from '../transactions';
 import { logStart, logStop } from '../../utils/trace.log';
 const logTrace = true;
 
@@ -34,6 +36,7 @@ export class ContactAggregateService  {
 
   constructor(
     private createContactTransaction: CreateContactTransaction,
+    private deleteContactTransaction: DeleteContactTransaction,
     @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
     @Inject(RepoToken.CONTACT_SOURCE_REPOSITORY) private contactSourceRepository: Repository<ContactSource>,
     @Inject(RepoToken.CONTACT_ACCT_REL_REPOSITORY) private contactAcctRelRepository: Repository<ContactAcctRel>,
@@ -91,6 +94,15 @@ export class ContactAggregateService  {
     return savedAggregate;
   }
      
+  /**
+   * Delete Aggregate 
+   * @param contactAggregate 
+   * @returns DeleteTransactionResult
+   */
+  async deleteAggregate(contactAggregate: ContactAggregate): Promise<DeleteTransactionResult>   {
+    const savedAggregate = await this.deleteContactTransaction.delete(contactAggregate);
+    return savedAggregate;
+  }
 
 
   // To Be DELETED

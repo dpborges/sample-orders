@@ -16,9 +16,9 @@ import { ConfigModule } from '@nestjs/config';
 import { DomainChangeEventFactory } from './contact/services/domain.change.event.factory';
 import { DomainChangeEventManager } from './outbox/domainchange.event.manager';
 import { ContactServiceLatest } from './contact/services/contact.service.latest';
-import { CreateContactSaga } from './contact/sagas/create.contact.saga';
+import { CreateContactSaga, DeleteContactSaga } from './contact/sagas';
 import { ContactAggregateService } from './contact/services/contact.aggregate.service';
-import { CreateContactTransaction } from './contact/transactions';
+import { CreateContactTransaction, DeleteContactTransaction } from './contact/transactions';
 import { ContactQueryService } from './contact/dbqueries/services/contact.query.service';
 // import { SaveOutboxTransaction } from './outbox/transactions/save.outbox.transaction';
 
@@ -54,7 +54,9 @@ import { ContactQueryService } from './contact/dbqueries/services/contact.query.
       ContactAggregateService,
       CreateContactTransaction,
       ContactQueryService,
-      UpdateContactSaga
+      UpdateContactSaga,
+      DeleteContactTransaction,
+      DeleteContactSaga
       // SaveOutboxTransaction
   ],
 })

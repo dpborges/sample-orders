@@ -9,12 +9,14 @@ import { ContactSource } from '../entities/contact.source.entity';
 import { ContactAcctRel } from '../entities/contact.acct.rel.entity';
 import { RepoToken } from '../../db-providers/repo.token.enum';
 import { ContactCreatedEvent } from '../../events/contact/domainChanges';
+import { DeleteResult } from 'typeorm';
+import { DeleteTransactionResult } from './types/delete.transaction.result';
 
 // Class is responsible for saving aggregate entities as a one transaction.
 // If an outbox is include in the within the AggregateEntities object, it will included in transaction.
 // Persistent rules are handled in the domain aggregate class
 @Injectable()
-export class CreateContactTransaction {
+export class DeleteContactTransaction {
   
   constructor(
     @Inject(RepoToken.DATA_SOURCE) private dataSource: DataSource,
@@ -23,16 +25,20 @@ export class CreateContactTransaction {
     @Inject(RepoToken.CONTACT_ACCT_REL_REPOSITORY) private contactAcctRelRepository: Repository<ContactAcctRel>,
   ) {}
   
-  async create(
+  async delete(
       contactAggregate: ContactAggregate
       // headerInfo: 
-    ): Promise<ContactAggregate> {
+    ): Promise<DeleteTransactionResult> {
     /* establish connection  */
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
 
     /* destructure Aggregate Entities  */
     let { contact, contactSource, contactAcctRel } = contactAggregate;
+    
+    /* init deleteResult */
+    let deleteAggregateRootResult: DeleteResult; 
+    let deleteTransactionResult:   DeleteTransactionResult;
 
     /* start transaction */
     await queryRunner.startTransaction();
@@ -41,30 +47,36 @@ export class CreateContactTransaction {
     try {
       if (contact) {
         /* save contact  */
-        contactAggregate.contact = await this.contactRepository.save(contactAggregate.contact)
+        deleteAggregateRootResult = await this.contactRepository.delete(contactAggregate.contact)
       } 
       if (contactSource) {
         /* assign contact id to contactSource to establish 1:1 relationship */
         contactSource.contactId = contact.id;
         /* save contactSource */
-        contactAggregate.contactSource = await this.contactSourceRepository.save(contactAggregate.contactSource)
+        await this.contactSourceRepository.delete(contactAggregate.contactSource)
       }
       if (contactAcctRel) {
         /* create contact -> account relationship, where one contact may exist in multiple accounts */
         contactAcctRel.contactId = contact.id;
-        contactAggregate.contactAcctRel = await this.contactAcctRelRepository.save(contactAggregate.contactAcctRel)
+        await this.contactAcctRelRepository.delete(contactAggregate.contactAcctRel)
       } 
       await queryRunner.commitTransaction();
+
+      /* populate return object */
+      deleteTransactionResult.affected = deleteAggregateRootResult.affected;
+      deleteTransactionResult.successful = true;
+
     } catch (err) {
-      // rollback changes 
+      /* set successful propert to false */
+      deleteTransactionResult.affected = deleteAggregateRootResult.affected;
+      deleteTransactionResult.successful = false;
+      /* rollback changes  */
       await queryRunner.rollbackTransaction();
-      // nullify aggregate root object
-      contactAggregate.contact = null;
     } finally {
       // release query runner which is manually created:
       await queryRunner.release();
     }
-    return contactAggregate;
+    return deleteTransactionResult;
   };
 
 

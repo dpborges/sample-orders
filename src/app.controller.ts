@@ -9,6 +9,7 @@ import { PublishUnpublishedEventsCmdPayload } from './outbox/events/commands';
 import { NatsJetStreamContext } from '@nestjs-plugins/nestjs-nats-jetstream-transport';
 import { Controller, Get, UseFilters } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
+import { DeleteContactEvent } from './events/contact/commands';
 import { ExecuteCommand, ListenForEvent } from './decorators';
 import {
   Ctx,
@@ -108,9 +109,7 @@ export class AppController {
     })
     console.log(`foundAllSteps is ${foundAllSteps} stepNotFound is ${stepNotFound}`)
 
-
-
-    
+   
 
     // let isSuccessful = (stepSuccess) => stepSuccess; /* predicate function */
     // let successFlagsArray = steps.map(step => process[step].success);
@@ -208,6 +207,27 @@ export class AppController {
     console.log('MS - ....with header', header);
     console.log('MS - ....with message', message);
     const cmdResult: any  =  await this.contactServiceLatest.updateContact(payload)
+    // Here you create Order and insert CreatedOrderEvent to the event database
+    // as a single transaction. The publish flag will be false false
+    console.log("UPDATE CONTACT CMD RESULT ", cmdResult)
+    // here you return the CreatedOrderEvent.
+    // return "Completed Contact Update";
+    return cmdResult;
+  }
+
+  @ExecuteCommand(ContactCommand.deleteContact)
+  async deleteContactCommandHandler(
+    @Payload() payload: DeleteContactEvent,
+    @Ctx() context: NatsJetStreamContext
+  ): Promise<any | ServerError> {
+    const header = payload.header;
+    const message = payload.message;
+    const subject = context.message.subject;
+    console.log(`MS - Received subject ${subject} on Contact Microservice`);
+    console.log('MS - ....with data', payload);
+    console.log('MS - ....with header', header);
+    console.log('MS - ....with message', message);
+    const cmdResult: any  =  await this.contactServiceLatest.deleteContact(payload)
     // Here you create Order and insert CreatedOrderEvent to the event database
     // as a single transaction. The publish flag will be false false
     console.log("UPDATE CONTACT CMD RESULT ", cmdResult)

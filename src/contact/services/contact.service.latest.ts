@@ -20,14 +20,14 @@ import { DomainChangeEventManager } from '../../outbox/domainchange.event.manage
 import { ConfigService }  from '@nestjs/config';
 import { genBeforeAndAfterImage } from '../../utils/gen.beforeAfter.image';
 import { DataChanges } from '../../common/responses/base.response';
-import { UpdateContactEvent } from '../../events/contact/commands';
+import { UpdateContactEvent, DeleteContactEvent } from '../../events/contact/commands';
 import { logStart, logStop } from 'src/utils/trace.log';
 import { BaseError, ClientError } from '../../common/errors';
 import { ServerError, ServerErrorReasons, ClientErrorReasons } from '../../common/errors/';
 import { BaseResponse } from '../../common/responses/base.response';
-import { CreateContactSaga } from '../sagas/create.contact.saga';
-import { UpdateContactSaga } from '../sagas';
+import { CreateContactSaga, DeleteContactSaga, UpdateContactSaga } from '../sagas/';
 import { ContactQueryService } from '../dbqueries/services';
+import { DeleteTransactionResult } from '../transactions/types/delete.transaction.result';
 const logTrace = true;
 
 @Injectable()
@@ -40,6 +40,7 @@ export class ContactServiceLatest {
   constructor(
     private createContactSaga: CreateContactSaga,
     private updateContactSaga: UpdateContactSaga,
+    private deleteContactSaga: DeleteContactSaga,
     private contactAggregateService: ContactAggregateService,
     private customNatsClient: CustomNatsClient,
     private configService: ConfigService,
@@ -222,6 +223,32 @@ export class ContactServiceLatest {
     const result: any = await this.updateContactSaga.execute(updateContactEvent)
 
     // logTrace && logStop(methodName, 'createContactResponse', createContactResponse);
+    return result;
+  }
+
+
+   /**
+   * Delete contact aggregate using DeleteContactSaga
+   * @param updateContactEvent 
+   */
+   async deleteContact(deleteContactEvent: DeleteContactEvent): Promise<any | BaseError> {
+    const methodName = 'deleteContact';
+    logTrace && logStart([methodName, 'deleteContactEvent',deleteContactEvent ], arguments);
+
+    const { header, message } = deleteContactEvent; 
+    const { id, accountId, ...updateProperties }  = message; 
+
+    /* If contact does not exists, return 404 error */
+    const contactExists = await this.contactQueryService.checkContactExistsById(accountId, id);
+    console.log("contactExists var ", contactExists)
+    if (!contactExists) {
+      return this.notFoundContactError(id)
+    }
+
+    /* Execute update contact saga */
+    const result: DeleteTransactionResult = await this.deleteContactSaga.execute(deleteContactEvent);
+
+    logTrace && logStop(methodName, 'result', result);
     return result;
   }
 
