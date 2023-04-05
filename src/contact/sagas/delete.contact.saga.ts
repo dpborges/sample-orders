@@ -82,27 +82,27 @@ export class DeleteContactSaga {
     // updateProcess = result.processStatus;
 
     // =============================================================================
-    // STEP 5: GENERATE CONTACT UPDATED EVENT; If domainChangeEvents are not enabled,
-    // bypass step by setting success flag to true, otherwise saga would be considered failed.
-    // let serializedContactUpdateEvent = '';
-    // if (this.domainChangeEventsEnabled()) { 
-    //   result = this.generateContactUpdatedEvent(updateProcess, updateContactEvent, savedAggregate);
-    //   serializedContactUpdateEvent = result.data;
-    //   updateProcess = result.processStatus;
-    // } else {
-    //   updateProcess = updateProcessStatus(updateProcess, 'step5', true)  
-    // }
+    // STEP 3: GENERATE CONTACT DELETED EVENT; Only if domainChangeEvents flag is true.
+    // If false, update step in deleteProcess as successful, otherwise saga will fail.
+    let serializedContactDeletedEvent = '';
+    if (this.domainChangeEventsEnabled()) { 
+      result = this.generateContactDeletedEvent(deleteProcess, deleteContactEvent, contactAggregate);
+      serializedContactDeletedEvent = result.data;
+      deleteProcess = result.processStatus;
+    } else {
+      deleteProcess = updateProcessStatus(deleteProcess, 'step3', true)  
+    }
 
     // =============================================================================
-    // STEP 6: CREATE OUTBOX INSTANCE
-    // let outboxInstance = null;
-    // if (this.domainChangeEventsEnabled()) { 
-    //   result = this.createOutboxInstance(updateProcess, updateContactEvent, serializedContactUpdateEvent);
-    //   outboxInstance = result.data;
-    //   updateProcess = result.processStatus;
-    // } else {
-    //   updateProcess = updateProcessStatus(updateProcess, 'step6', true)  
-    // }
+    // STEP 4: CREATE OUTBOX INSTANCE
+    let outboxInstance = null;
+    if (this.domainChangeEventsEnabled()) { 
+      result = this.createOutboxInstance(deleteProcess, deleteContactEvent, serializedContactDeletedEvent);
+      outboxInstance = result.data;
+      deleteProcess  = result.processStatus;
+    } else {
+      deleteProcess = updateProcessStatus(deleteProcess, 'step4', true)  
+    }
 
     // =============================================================================
     // STEP 7: SAVE OUTBOX INSTANCE - this is a Pivot step
@@ -258,66 +258,62 @@ export class DeleteContactSaga {
   /**
    * Generates an domain change updated event. 
    * Note that the domainChangeEventsEnabled flag must be set to publish events.
-   * @param updateContactEvent 
+   * @param deleteContactEvent 
    * @param aggregate 
    */
-  // generateContactUpdatedEvent(
-  //   processStatus,
-  //   updateContactEvent: UpdateContactEvent, 
-  //   aggregate: ContactAggregate): StepResult 
-  // {
-  //   const methodName = 'generateContactUpdatedEvent';
-  //   logTrace && logStart([methodName, 'updateContactEvent','aggregate'], arguments);
+  generateContactDeletedEvent(
+    processStatus,
+    deleteContactEvent: DeleteContactEvent, 
+    aggregate: ContactAggregate): StepResult 
+  {
+    const methodName = 'generateContactDeletedEvent';
+    logTrace && logStart([methodName, 'deleteContactEvent','aggregate'], arguments);
 
-  //   /* Intialize result object */
-  //   let result: StepResult = { data: null, processStatus: null };
+    /* Intialize result object */
+    let result: StepResult = { data: null, processStatus: null };
 
-  //   /* extract version from aggregate to pass down to include in updatedConsumerEvent */
-  //   const contact = aggregate.contact;
-  //   const version: number = contact.version;
+    /* Business Logic: create serialized contactCreatedEvent */
+    const serializedContactDeletedEvent = this.domainChangeEventFactory.genDeletedEventFor(deleteContactEvent);
 
-  //   /* Business Logic: create serialized contactCreatedEvent */
-  //   const serializedContactUpdatedEvent = this.domainChangeEventFactory.genUpdatedEventFor(updateContactEvent, version);
+    /* Update process success flag */
+    processStatus = updateProcessStatus(processStatus, 'step3', true)
 
-  //   /* Update process success flag */
-  //   processStatus = updateProcessStatus(processStatus, 'step5', true)
-
-  //   /* return Result */
-  //   result = { data: serializedContactUpdatedEvent, processStatus }
-  //   logTrace && logStop(methodName, 'result', result)
-  //   return result;
-  // }
+    /* return Result */
+    result = { data: serializedContactDeletedEvent, processStatus }
+    logTrace && logStop(methodName, 'result', result)
+    return result;
+  }
    
   /**
    * Returns an outbox instance with the domain change event.
    * @param createContactEvent 
    * @param aggregate 
    */
-  // createOutboxInstance(
-  //   processStatus,
-  //   updateContactEvent: UpdateContactEvent, 
-  //   serializedContactUpdatedEvent: string) 
-  // {
-  //   const methodName = 'createOutboxInstance';
-  //   logTrace && logStart([methodName, 'updateContactEvent','serializedContactUpdatedEvent'], arguments);
+  createOutboxInstance(
+    processStatus,
+    deleteContactEvent: DeleteContactEvent, 
+    serializedContactDeletedEvent: string) 
+  {
+    const methodName = 'createOutboxInstance';
+    logTrace && logStart([methodName, 'deleteContactEvent','serializedContactDeletedEvent'], arguments);
 
-  //   /* Intialize result object */
-  //   let result: StepResult = { data: null, processStatus: null };
+    /* Intialize result object */
+    let result: StepResult = { data: null, processStatus: null };
 
-  //   /* Business Logic: create Outbox Instance of contactCreatedEvent, from createContactEvent */
-  //   let contactOutboxInstance: ContactOutbox = this.outboxService.generateContactUpdatedInstance(
-  //       updateContactEvent, 
-  //       serializedContactUpdatedEvent
-  //     );
+    /* Business Logic: create Outbox Instance of contactCreatedEvent, from createContactEvent */
+    let contactOutboxInstance: ContactOutbox = this.outboxService.generateContactDeletedInstance(
+        deleteContactEvent, 
+        serializedContactDeletedEvent
+      );
 
-  //   /* Update process success flag */
-  //   processStatus = updateProcessStatus(processStatus, 'step6', true)
+    /* Update process success flag */
+    processStatus = updateProcessStatus(processStatus, 'step4', true)
   
-  //   /* return Result */
-  //   result = { data: contactOutboxInstance, processStatus }
-  //   logTrace && logStop(methodName, 'result', result)
-  //   return result;
-  // }
+    /* return Result */
+    result = { data: contactOutboxInstance, processStatus }
+    logTrace && logStop(methodName, 'result', result)
+    return result;
+  }
 
   
   /**

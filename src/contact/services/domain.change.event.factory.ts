@@ -1,9 +1,9 @@
 import { ContactAggregate } from '../types/contact.aggregate';
 import { UpdateContactEvent } from '../../events/contact/commands';
 import { Injectable } from '@nestjs/common';
-import { CreateContactEvent } from 'src/events/contact/commands';
+import { CreateContactEvent, DeleteContactEvent } from 'src/events/contact/commands';
 import { ContactOutbox } from 'src/outbox/entities/contact.outbox.entity';
-import { ContactCreatedEvent, ContactUpdatedEvent } from '../../events/contact/domainChanges';
+import { ContactCreatedEvent, ContactUpdatedEvent, ContactDeletedEvent } from '../../events/contact/domainChanges';
 import { logStart, logStop } from 'src/utils/trace.log';
 import { Subjects } from 'src/events/contact/domainChanges';
 // import { AggregrateService } from './aggregrate/aggregrate.service';
@@ -74,6 +74,30 @@ export class DomainChangeEventFactory {
 
     logTrace && logStop(methodName, 'serializedContactUpdatedEvent', serializedContactUpdatedEvent)
     return serializedContactUpdatedEvent;
+  }
+
+  /**
+   * Generate a serialzied deletedDomainEvent payload  from deleteDomainEvent
+   * @param deleteContactEvent 
+   */
+  genDeletedEventFor(deleteContactEvent: DeleteContactEvent): string {
+    const methodName = 'genDeletedEventFor'
+    logTrace && logStart([methodName, 'deleteContactEvent'], arguments);
+    
+    /* destructure properties for create contact event */
+    const  { sessionId, userId } = deleteContactEvent.header;
+    const  { id, accountId } = deleteContactEvent.message;
+
+    /* use destructured properties to define what to include in updatedEvent  */
+    const contactDeletedEvent: ContactDeletedEvent = { 
+      header:  { sessionId, userId },
+      message: { id, accountId }
+    }
+    /* serialize event  */
+    const serializedContactDeletedEvent: string = JSON.stringify(contactDeletedEvent);
+
+    logTrace && logStop(methodName, 'serializedContactUpdatedEvent', serializedContactDeletedEvent)
+    return serializedContactDeletedEvent;
   }
 
  /* generates the contactCreatedEvent and returns an outbox entity instance

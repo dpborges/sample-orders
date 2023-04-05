@@ -2,7 +2,7 @@ import { UpdateEventStatusCmdPayload } from './events/commands/update.status.pay
 import { ContactCreatedEvent } from '../events/contact/domainChanges/contact-created-event';
 import { Repository } from 'typeorm';
 import { Injectable, Inject } from '@nestjs/common';
-import { CreateContactEvent } from '../events/contact/commands/create-contact-event';
+import { CreateContactEvent, DeleteContactEvent, UpdateContactEvent } from '../events/contact/commands';
 import { ServerError } from '../common/errors/server/server.error';
 import { ClientErrorReasons } from '../common/errors/client/client.error.reasons';
 import { PublishUnpublishedEventsCmdPayload } from './events/commands';
@@ -12,7 +12,6 @@ import { OutboxStatus } from './outbox.status.enum';
 import { Subjects } from '../events/contact/domainChanges';
 import { DomainChangeEventPublisher } from './domainchange.event.publisher';
 import { SubjectAndPayload } from './types/subject.and.payload';
-import { UpdateContactEvent } from 'src/events/contact/commands';
 
 @Injectable()
 export class OutboxService {
@@ -111,6 +110,28 @@ export class OutboxService {
    });
       
    return contactUpdatedEventOutboxInstance
+  }
+
+  /* generates the contactDeletedEvent and return an outbox entity instance
+     to the contact service to ultimately save it with the aggregate save transaction   */
+    generateContactDeletedInstance(
+      deleteContactEvent: DeleteContactEvent,
+      serializedEventPayload:  string
+    ): ContactOutbox {
+    console.log(">>> Inside OutboxService.generateContactUpdatedInstance ")
+    // console.log("    contactCreatedEvent ",  createContactEvent);
+    const { userId }    = deleteContactEvent.header;
+    const { accountId } = deleteContactEvent.message;
+
+    const contactDeletedEventOutboxInstance:ContactOutbox = this.contactOutboxRepository.create({
+      accountId, 
+      subject: Subjects.ContactDeleted,
+      payload: serializedEventPayload,
+      userId,
+      status: OutboxStatus.unpublished
+   });
+      
+   return contactDeletedEventOutboxInstance
   }
 
   async saveOutboxInstance(contactOutboxInstance: ContactOutbox): Promise<any> {

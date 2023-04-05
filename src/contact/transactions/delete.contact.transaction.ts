@@ -38,7 +38,7 @@ export class DeleteContactTransaction {
     
     /* init deleteResult */
     let deleteAggregateRootResult: DeleteResult; 
-    let deleteTransactionResult:   DeleteTransactionResult;
+    let deleteTransactionResult:   DeleteTransactionResult = { affected: 0, successful: false };
 
     /* start transaction */
     await queryRunner.startTransaction();
@@ -46,17 +46,18 @@ export class DeleteContactTransaction {
     /* save aggregate  */
     try {
       if (contact) {
-        /* save contact  */
-        deleteAggregateRootResult = await this.contactRepository.delete(contactAggregate.contact)
+        /* delete contact  */
+        deleteAggregateRootResult = await this.contactRepository.delete(contactAggregate.contact);
+        console.log("deleteAggregateRootResult 1 ", deleteAggregateRootResult);
       } 
       if (contactSource) {
         /* assign contact id to contactSource to establish 1:1 relationship */
         contactSource.contactId = contact.id;
-        /* save contactSource */
-        await this.contactSourceRepository.delete(contactAggregate.contactSource)
+        /* delete contactSource */
+        await this.contactSourceRepository.delete(contactAggregate.contactSource);
       }
       if (contactAcctRel) {
-        /* create contact -> account relationship, where one contact may exist in multiple accounts */
+        /* delete contact -> account relationship, where one contact may exist in multiple accounts */
         contactAcctRel.contactId = contact.id;
         await this.contactAcctRelRepository.delete(contactAggregate.contactAcctRel)
       } 
