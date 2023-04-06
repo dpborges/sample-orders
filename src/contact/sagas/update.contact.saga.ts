@@ -15,6 +15,7 @@ import {
   updateProcessStatus, setRollbackTrigger 
 } from './helpers';
 import { ContactQueryService } from '../dbqueries/services/contact.query.service';
+import { UpdateContactResponse } from '../responses/update.contact.response'; 
 import { logStart, logStop } from '../../utils/trace.log';
 import { StepResult } from './types/step.result';
 
@@ -121,7 +122,7 @@ export class UpdateContactSaga {
         updateProcess = result.processStatus;
       }
     }
-    /* if step7 was not successful or rollback was triggered, do rollback */
+    /* if this step was not successful or rollback was triggered, do rollback */
     if (!updateProcess['step7'].success || updateProcess['rollbackTriggered']) {
       const rollbackMethods = [this.rollbackSaveAggregate]; /* rollback methods in reverse order*/
       await this.rollbackSaga(rollbackMethods)
@@ -139,7 +140,10 @@ export class UpdateContactSaga {
 
     // =============================================================================
     // RETRUN SAGA RESPONSE to contact service, which will convert to hypermedia response
-    return result;
+    const updateContactResponse: UpdateContactResponse = new UpdateContactResponse(savedAggregate.contact.id);
+    updateContactResponse.setDataChanges(beforeAfterImages);
+    return updateContactResponse;
+    // return result;
   }
 
   //****************************************************************************** */
@@ -347,7 +351,7 @@ export class UpdateContactSaga {
   }
 
   /**
-   * Triggers outbox to publish unpublished events
+   * Triggers outbox to publish unpublished events for a given account id
    * @param processStatus 
    * @param accountId 
    * @returns 

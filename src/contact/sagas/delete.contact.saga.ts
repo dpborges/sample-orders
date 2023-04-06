@@ -1,3 +1,4 @@
+import { ContactSource } from './../entities/contact.source.entity';
 import { Repository, DataSource } from 'typeorm';
 import { RepoToken } from '../../db-providers/repo.token.enum';
 import { ContactOutbox } from '../../outbox/entities/contact.outbox.entity';
@@ -18,6 +19,7 @@ import { ContactQueryService } from '../dbqueries/services/contact.query.service
 import { logStart, logStop } from '../../utils/trace.log';
 import { StepResult } from './types/step.result';
 import { DeleteTransactionResult } from '../transactions/types/delete.transaction.result';
+import { DeleteContactResponse } from '../responses';
 
 const logTrace = false;
 
@@ -63,76 +65,70 @@ export class DeleteContactSaga {
     let contactAggregate = result.data;
     deleteProcess = result.processStatus;
 
-    // =============================================================================
-    // STEP 2: DELETE AGGREGATE
-    result =  await this.deleteAggregate(deleteProcess, contactAggregate);
-    let deleteTranResult: DeleteTransactionResult = result.data;
-    deleteProcess = result.processStatus;
+    // // =============================================================================
+    // // STEP 2: DELETE AGGREGATE
+    // result =  await this.deleteAggregate(deleteProcess, contactAggregate);
+    // let deleteTranResult: DeleteTransactionResult = result.data;
+    // deleteProcess = result.processStatus;
 
-    // =============================================================================
-    // STEP 3: APPLY UPDATES TO AGGREGATE
-    // result = this.applyUpdates(updateProcess, updateContactEvent, contactAggregate);
-    // let updatedAggregate = result.data;
-    // updateProcess = result.processStatus;
+    // // =============================================================================
+    // // STEP 3: GENERATE CONTACT DELETED EVENT; Only if domainChangeEvents flag is true.
+    // // If false, update step in deleteProcess as successful, otherwise saga will fail.
+    // let serializedContactDeletedEvent = '';
+    // if (this.domainChangeEventsEnabled()) { 
+    //   result = this.generateContactDeletedEvent(deleteProcess, deleteContactEvent, contactAggregate);
+    //   serializedContactDeletedEvent = result.data;
+    //   deleteProcess = result.processStatus;
+    // } else {
+    //   deleteProcess = updateProcessStatus(deleteProcess, 'step3', true)  
+    // }
 
-    // =============================================================================
-    // STEP 4: SAVE AGGREGATE
-    // result = await this.saveAggregate(updateProcess, updatedAggregate);
-    // let savedAggregate = result.data;
-    // updateProcess = result.processStatus;
+    // // =============================================================================
+    // // STEP 4: CREATE OUTBOX INSTANCE
+    // let outboxInstance = null;
+    // if (this.domainChangeEventsEnabled()) { 
+    //   result = this.createOutboxInstance(deleteProcess, deleteContactEvent, serializedContactDeletedEvent);
+    //   outboxInstance = result.data;
+    //   deleteProcess  = result.processStatus;
+    // } else {
+    //   deleteProcess = updateProcessStatus(deleteProcess, 'step4', true)  
+    // }
 
-    // =============================================================================
-    // STEP 3: GENERATE CONTACT DELETED EVENT; Only if domainChangeEvents flag is true.
-    // If false, update step in deleteProcess as successful, otherwise saga will fail.
-    let serializedContactDeletedEvent = '';
-    if (this.domainChangeEventsEnabled()) { 
-      result = this.generateContactDeletedEvent(deleteProcess, deleteContactEvent, contactAggregate);
-      serializedContactDeletedEvent = result.data;
-      deleteProcess = result.processStatus;
-    } else {
-      deleteProcess = updateProcessStatus(deleteProcess, 'step3', true)  
-    }
-
-    // =============================================================================
-    // STEP 4: CREATE OUTBOX INSTANCE
-    let outboxInstance = null;
-    if (this.domainChangeEventsEnabled()) { 
-      result = this.createOutboxInstance(deleteProcess, deleteContactEvent, serializedContactDeletedEvent);
-      outboxInstance = result.data;
-      deleteProcess  = result.processStatus;
-    } else {
-      deleteProcess = updateProcessStatus(deleteProcess, 'step4', true)  
-    }
-
-    // =============================================================================
-    // STEP 7: SAVE OUTBOX INSTANCE - this is a Pivot step
+    // // =============================================================================
+    // // STEP 5: SAVE OUTBOX INSTANCE - this is a Pivot step
     // let savedOutboxInstance = null;
     // let previousStepsSuccessful = isStepsSuccessful([
-    //   'step1', 'step2', 'step3', 'step4', 'step5', 'step6'
-    // ], updateProcess);
+    //   'step1', 'step2', 'step3', 'step4'
+    // ], deleteProcess);
     // if (this.domainChangeEventsNotEnabled()) { /* bypass step by updating successflag to true */
-    //   updateProcess = updateProcessStatus(updateProcess, 'step7', true)    
+    //   deleteProcess = updateProcessStatus(deleteProcess, 'step5', true)    
     // } else { 
     //   /* if previous steps not successful, set rollback trigger */
     //   if (!previousStepsSuccessful) {  
-    //     updateProcess = setRollbackTrigger(updateProcess)
+    //     deleteProcess = setRollbackTrigger(deleteProcess)
     //   } else {  /* otherwise update outbox  */
-    //     result = await this.saveOutboxInstance(updateProcess, outboxInstance);
+    //     result = await this.saveOutboxInstance(deleteProcess, outboxInstance);
     //     savedOutboxInstance = result.data;
-    //     updateProcess = result.processStatus;
+    //     deleteProcess = result.processStatus;
     //   }
     // }
-    // /* if step7 was not successful or rollback was triggered, do rollback */
-    // if (!updateProcess['step7'].success || updateProcess['rollbackTriggered']) {
-    //   const rollbackMethods = [this.rollbackSaveAggregate]; /* rollback methods in reverse order*/
+    // /* if this step was not successful or rollback was triggered, do rollback */
+    // if (!deleteProcess['step5'].success || deleteProcess['rollbackTriggered']) {
+    //   const rollbackMethods = [this.rollbackDeleteAggregate]; /* rollback methods in reverse order*/
     //   await this.rollbackSaga(rollbackMethods)
     // }
   
-    // =============================================================================
-    // STEP 8: TRIGGER OUTBOX - publishes
-    // result = await this.triggerOutbox(updateProcess, savedAggregate.contact.accountId);
+    // // =============================================================================
+    // // STEP 6: TRIGGER OUTBOX - publishes
+    // result = await this.triggerOutbox(deleteProcess, contactAggregate.accountId);
     // let publishingCmdResult = result.data; 
-    // updateProcess = result.processStatus;
+    // deleteProcess = result.processStatus;
+
+    // =============================================================================
+    // STEP 7: GENERATE DELETED DATA
+    result = await this.generateDeletedData(deleteProcess, contactAggregate);
+    let deletedData = result.data; 
+    deleteProcess = result.processStatus;
 
     // =============================================================================
     // FINALIZE STEP: LOG ERROR if failure in saga updateProcess
@@ -140,7 +136,9 @@ export class DeleteContactSaga {
 
     // =============================================================================
     // RETRUN SAGA RESPONSE to contact service, which will convert to hypermedia response
-    return result;
+    let deleteContactResponse = new DeleteContactResponse(deletedData)
+    
+    return deleteContactResponse;
   }
 
   //****************************************************************************** */
@@ -205,30 +203,7 @@ export class DeleteContactSaga {
   //   return result;
   // };
   
-  // applyUpdates(processStatus, updateContactEvent, contactAggregate) {
-  //   const methodName = 'generateBeforeAndAfterImages'
-  //   logTrace && logStart([methodName, 'updateRequest', 'aggregate'], arguments)
-
-  //   /* Intialize result object */
-  //   let result: StepResult = { data: null, processStatus: null };
-
-  //   /* Construct updateRequest (properties in the update event) */
-  //   const { header, message } = updateContactEvent;
-  //   const { id, accountId, ...updateProperties }  = message; 
-  //   let updateRequest = { ...updateProperties }; /* separates out update properties only*/
-
-  //   /* Business logic:  */
-  //   let updatedAggregate = this.contactAggregateService.applyUpdates(updateRequest, contactAggregate)
-
-  //   /* Update process success based on result */
-  //   processStatus = updateProcessStatus(processStatus, 'step3', true)
-
-  //   /* return Result */
-  //   result = { data: updatedAggregate, processStatus };
-  //   logTrace && logStop(methodName, 'result', result)
-  //   return result;
-  // };
-  
+    
   /**
    * Delete Aggregate 
    * @param processStatus 
@@ -322,26 +297,26 @@ export class DeleteContactSaga {
    * @param contactOutboxInstance 
    * @returns 
    */
-  // async saveOutboxInstance(processStatus, contactOutboxInstance): Promise<StepResult> {
-  //   const methodName = 'saveOutbox';
-  //   logTrace && logStart([methodName, 'processStatus','contactOutboxInstance'], arguments);
-  //   /* Intialize result object */
-  //   let result: StepResult = { data: null, processStatus: null };
-  //   let savedOutboxInstance: ContactOutbox = null;
+  async saveOutboxInstance(processStatus, contactOutboxInstance): Promise<StepResult> {
+    const methodName = 'saveOutbox';
+    logTrace && logStart([methodName, 'processStatus','contactOutboxInstance'], arguments);
+    /* Intialize result object */
+    let result: StepResult = { data: null, processStatus: null };
+    let savedOutboxInstance: ContactOutbox = null;
 
-  //   /* Business Logic: If no prior failures, save outbox */
-  //   savedOutboxInstance = await this.outboxService.saveOutboxInstance(contactOutboxInstance)
-  //   if (savedOutboxInstance) { /* if outbox saved, set update result data and processStatus  */
-  //     result.data = savedOutboxInstance;
-  //     processStatus = updateProcessStatus(processStatus, 'step7', true);
-  //     result.processStatus = processStatus;
-  //   } 
+    /* Business Logic: If no prior failures, save outbox */
+    savedOutboxInstance = await this.outboxService.saveOutboxInstance(contactOutboxInstance)
+    if (savedOutboxInstance) { /* if outbox saved, set update result data and processStatus  */
+      result.data = savedOutboxInstance;
+      processStatus = updateProcessStatus(processStatus, 'step5', true);
+      result.processStatus = processStatus;
+    } 
     
-  //   /* return result */
-  //   result = { data: savedOutboxInstance, processStatus }
-  //   logTrace && logStop(methodName, 'result', result);
-  //   return result;
-  // }
+    /* return result */
+    result = { data: savedOutboxInstance, processStatus }
+    logTrace && logStop(methodName, 'result', result);
+    return result;
+  }
 
   /**
    * Triggers outbox to publish unpublished events
@@ -359,10 +334,42 @@ export class DeleteContactSaga {
     const cmdResult: any = await this.domainChangeEventManager.triggerOutboxForAccount(accountId);
 
     /* update process status */
-    processStatus = updateProcessStatus(processStatus, 'step8', true);
+    processStatus = updateProcessStatus(processStatus, 'step6', true);
 
     /* return result */
     result = { data: cmdResult, processStatus }
+    logTrace && logStop(methodName, 'result', result);
+    return result;
+  }
+
+  /**
+   * Generate Deleted Data to include as part of the response
+   * @param processStatus 
+   * @param contactAggregate
+   * @returns 
+   */
+  async generateDeletedData(processStatus, contactAggregate) {
+    const methodName = 'triggerOutbox';
+    logTrace && logStart([methodName, 'processStatus','accountId'], arguments);
+    /* Intialize result object */
+    let result: StepResult = { data: null, processStatus: null };
+
+    /* Business Logic: Sends command to outbox to publish unpublished events in outbox for a given account */
+    /* destructure aggregate relations */
+    const { contact, contactAcctRel, contactSource } = contactAggregate;
+
+    /* extract properties from aggregate root and other relations  */
+    let deletedData = { ... contact, accountId: contactAcctRel.accountId };
+    if (contactSource) {
+      const { sourceType, sourceName } = contactSource;
+      deletedData = { ...deletedData, sourceType, sourceName };
+    }
+
+    /* update process status */
+    processStatus = updateProcessStatus(processStatus, 'step7', true);
+
+    /* return result */
+    result = { data: deletedData, processStatus }
     logTrace && logStop(methodName, 'result', result);
     return result;
   }
@@ -387,13 +394,13 @@ export class DeleteContactSaga {
     // let rollBackResult = await 
     // call finalize
   }
-  
-  // Rollback Save Aggregate 
-  async rollbackSaveAggregate() {
+
+  // Rollback Delete Aggregate 
+   async rollbackDeleteAggregate() {
     // ROLLING BACK SHOULD CONSIST OF LOADING(FETCHING) AGGREGATE
     // AND DELETING EACH OF THE RELATIONS IN A SINGLE TRANSACTION
     console.log('OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO')
-    console.log("ROLLBACK SAVED AGGREGATE")
+    console.log("ROLLBACK DELETE AGGREGATE")
     console.log('OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO')
   }
 

@@ -10,6 +10,7 @@ import { NatsJetStreamContext } from '@nestjs-plugins/nestjs-nats-jetstream-tran
 import { Controller, Get, UseFilters } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { DeleteContactEvent } from './events/contact/commands';
+import { ContactDeletedEvent } from './events/contact/domainChanges';
 import { ExecuteCommand, ListenForEvent } from './decorators';
 import {
   Ctx,
@@ -173,7 +174,7 @@ export class AppController {
 
 
   //************************************************************** */
-  // Contact CUD Handlers
+  // Contact CUD Command Handlers
   //************************************************************** */
   // Create Contact
   @ExecuteCommand(ContactCommand.createContact)
@@ -281,7 +282,7 @@ export class AppController {
   }
 
   //************************************************************** */
-  // Sample Event Listeners for Domain Changes
+  // Sample Domain Change Event Listeners
   //************************************************************** */
   // IMPORTANT: Listeners that are updating downstream data stores should be checking 
   // version sequence for their entities to ensure CUD events are processed in proper order.
@@ -348,6 +349,37 @@ export class AppController {
 
     logTrace && logStop(methodName, 'subject',  `${context.message.subject} processed`);
   }
+
+   // Mock Listener for ContactDeleted Event and updates event status in outbox
+   @ListenForEvent(Subjects.ContactDeleted)
+   public async contactDeletedHandler(
+     @Ctx()  context: NatsJetStreamContext,
+     @Payload() contactDeletedEvent: ContactDeletedEvent) 
+   {
+     const methodName = 'contactDeletedHandler';
+     logTrace && logStartVal(methodName, 'contactCreatedEvent', JSON.stringify(contactDeletedEvent));
+    
+     const { header, message } = contactDeletedEvent;
+     const { outboxId } = header;
+     const { id, accountId } = message;
+     
+     /* Update event status to pending via service (request/reply) */
+     await this.appService.updateEventStatus(outboxId, OutboxStatus.pending)
+ 
+     /* Handle event here  */
+     const successfullyProcessed = true;
+ 
+     if (successfullyProcessed) {
+       /* Update event status to processed  */
+       await this.appService.updateEventStatus(outboxId, OutboxStatus.processed)
+ 
+       /* acknowledge message */
+       context.message.ack();  
+     }
+     
+     logTrace && logStop(methodName, 'subject',  `${context.message.subject} processed`);
+   }
+ 
   
   //************************************************************** */
   // END OF Sample Listeners for Domain Changes

@@ -39,6 +39,7 @@ class BaseResponse  {
   protected id?:      string | number;
   protected _links:   NamedLinks;   /* object with named relations */
   protected dataChanges?: DataChanges;
+  protected deletedData?: any;
   protected domain: string
 
   constructor(id?: string | number, namedLinks?:NamedLinks, dataChanges?: DataChanges ) {
@@ -58,8 +59,12 @@ class BaseResponse  {
   setNamedLinks(namedLinks) {
     this._links = namedLinks
   }
-  setUpdateImages(dataChanges: DataChanges) {
+  setDataChanges(dataChanges: DataChanges) {
     this.dataChanges = dataChanges;
+  }
+
+  setDeletedData(deletedData: any) {
+    this.deletedData = deletedData;
   }
 
   toString() {

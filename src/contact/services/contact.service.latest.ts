@@ -30,12 +30,16 @@ import { ContactQueryService } from '../dbqueries/services';
 import { DeleteTransactionResult } from '../transactions/types/delete.transaction.result';
 const logTrace = true;
 
+/**
+ * Contact Service is called by the Command Handlers (eg Create Contact, Delete Contact, 
+ * Update Contact, etc) in the Controller.
+ * It does preliminary existence checks before calling the underlying services and/or sagas.
+ * This layer standardizes service responses (eg. hypermedia) using response objects
+ */
 @Injectable()
 export class ContactServiceLatest {
   
   private generatedEvents: Array<ContactCreatedEvent> = [];
-
-  private domainChangeEventsEnabled: boolean = false;
 
   constructor(
     private createContactSaga: CreateContactSaga,
@@ -48,125 +52,11 @@ export class ContactServiceLatest {
     private domainChangeEventFactory: DomainChangeEventFactory,
     private domainChangeEventManager: DomainChangeEventManager, 
     private contactQueryService: ContactQueryService,
-    // private contactSaveService: ContactSaveService,
-    // @Inject(RepoToken.DATA_SOURCE) private dataSource: DataSource
-    // @Inject(RepoToken.CONTACT_REPOSITORY) private contactRepository: Repository<Contact>,
-  ) {
-    /* set domainChangeEventsEnabled flag */
-    if (this.configService.get('PUBLISH_DOMAIN_CHANGE_EVENTS') === "true") {
-      this.domainChangeEventsEnabled = true ;
-    }
-  }
+  ) { }
   
-  // async updateAggregate(updateContactEvent: UpdateContactEvent): Promise<UpdateContactResponse | BaseError> {
-  //   const methodName = 'updateAggregate';
-  //   logTrace && logStart([methodName, 'payload'], arguments);
-    
-  //   const { header, message } = updateContactEvent;
-    
-  //   // Destructure message to extract keys (for fetching aggregate) and update properties (for applying changes) .
-  //   const { id, accountId, ...updateProperties }  = message; 
-  //   let updateRequest = { ...updateProperties }; /* ONLY INCLUDE updateProperties in updateRequest */
-
-  //   /* fetch aggregate entities */
-  //   const aggregateEntities: ContactAggregateEntities = await this.contactAggregate.getAggregateEntitiesBy(accountId, id);
-
-  //   /* if not found return 404 */
-  //   if (!aggregateEntities.contact) {
-  //     let clientError = new ClientError(404);
-  //     clientError.setReason(ClientErrorReasons.KeysNotInDatabase);
-  //     clientError.setLongMessage(`id: ${id}`)
-  
-  //     return clientError;
-  //   }
-
-  //   /* generate before and after image  */
-  //   const beforeAndAfterImage: DataChanges = this.contactAggregate.generateBeforeAndAfterImages(updateRequest, aggregateEntities);
-  //   /* apply updates to aggregate entities */
-
-  //   let updatedAggregateEntities: ContactAggregateEntities;
-  //   updatedAggregateEntities = this.contactAggregate.applyUpdates(updateRequest, aggregateEntities)
-       
-  //   /* handle requirement for publishing domain updated event  */
-  //   this.prepareDomainUpdatedEvent(updateContactEvent, updatedAggregateEntities);
-    
-  //   // save changes
-  //   let savedAggregateEntities: ContactAggregateEntities;
-  //   savedAggregateEntities = await this.contactSaveService.save(updatedAggregateEntities);
-
-  //   /* if save was NOT successful, return error response */
-  //   if (!savedAggregateEntities.contact) {
-  //     let serverError = new ServerError(500);
-  //     serverError.setMessage(ServerErrorReasons.databaseError)
-  //     serverError.setReason(`${methodName}: failed to update contact aggregate id:${id} `);
-  //     return serverError;
-  //   }
-    
-  //   // create response object
-  //   const { id: contactId } = savedAggregateEntities.contact;
-  //   const dataChanges: DataChanges =  beforeAndAfterImage;
-  //   const updateContactResponse: UpdateContactResponse = new UpdateContactResponse(contactId);
-  //   updateContactResponse.setUpdateImages(beforeAndAfterImage);
-   
-  //   logTrace && logStop(methodName, "updateContactResponse", updateContactResponse);
-  //   return updateContactResponse;
-  // }
-
-  // TO BE DETERMINED NEED TO DECIDE IF THIS IS NEEDED
-  // IF I ENABLE THIS AGAIN, COPY EXCEPTOIN HANDLING FROM upgradeAggregate(payload)
-  // async updateAggregateById(id: number, updateRequest): Promise<ContactUpdatedResponse | ServerError> {
-  //   console.log("[A]")
-  //   /* fetch aggregate entities */
-  //   const aggregateEntities: ContactAggregateEntities = await this.getAggregateEntitiesById(id);
-  //   console.log("[B]")
-  //   /* apply updates to aggregate entities */
-  //   let updatedAggregateEntities: ContactAggregateEntities;
-  //   updatedAggregateEntities = this.contactAggregate.applyUpdates(updateRequest, aggregateEntities)
-  //   console.log("updatedAggregateEntities")
-  //   console.log(updatedAggregateEntities);
-  //   console.log("[C]")
-  //   /* generate before and after image  */
-  //   const beforeAndAfterImage: DataChanges = this.contactAggregate.generateBeforeAndAfterImages(updateRequest, updatedAggregateEntities);
-  //   console.log("beforeAndAfterImage");
-  //   console.log(beforeAndAfterImage);
-    
-  //   console.log("[D]")
-
-  //   /* handle requirement for publishing Created event  */
-  //   // this.prepareDomainUpdatedEvent(updateContactEvent, aggregate);
-    
-  //   // save changes
-  //   let savedAggregateEntities: ContactAggregateEntities;
-  //   savedAggregateEntities = await this.contactSaveService.save(updatedAggregateEntities);
-  //   console.log("[E]")
-
-  //   /* if save was NOT successful, return error response */
-  //   if (!savedAggregateEntities.contact) {
-  //     return new ServerError(500);
-  //   }
-  //   console.log("[F]")
-  //   // create response object
-  //   const { id: contactId } = savedAggregateEntities.contact;
-  //   const dataChanges: DataChanges =  beforeAndAfterImage;
-  //   const contactUpdatedResponse: ContactUpdatedResponse = new ContactUpdatedResponse(contactId);
-  //   contactUpdatedResponse.setUpdateImages(beforeAndAfterImage);
-  //   console.log("contactUpdatedResponse")
-  //   console.log(contactUpdatedResponse)
-
-  //   console.log("[G]")
-  //   return contactUpdatedResponse;
-  // }
- 
-  // To Be DELETED
-  // async getAggregateEntitiesById(id: number): Promise<ContactAggregateEntities> {
-  //   return await this.contactAggregate.getAggregateEntitiesById(id);
-  // }
- 
-  // service used to create aggregate using create.contact.saga.
-  //
   /**
    * Create aggregate using create.contact.saga and convert return value to hypermedia response.
-   * If error create contact, return server error.
+   * Provide standard data or error responses
    * @param createContactEvent 
    * @returns createContactResponse | ServerError
    */ 
@@ -202,7 +92,8 @@ export class ContactServiceLatest {
   }
 
   /**
-   * Update contact aggregate using UpdateContactSaga
+   * Update contact aggregate using UpdateContactSaga. Since before and after images
+   * need to be generated , the response object is constructed by the update contact saga.
    * @param updateContactEvent 
    */
   async updateContact(updateContactEvent: UpdateContactEvent): Promise<any> {
@@ -226,9 +117,9 @@ export class ContactServiceLatest {
     return result;
   }
 
-
-   /**
-   * Delete contact aggregate using DeleteContactSaga
+  /**
+   * Delete contact aggregate using DeleteContactSaga. The response in this case 
+   * is the 
    * @param updateContactEvent 
    */
    async deleteContact(deleteContactEvent: DeleteContactEvent): Promise<any | BaseError> {
@@ -251,88 +142,11 @@ export class ContactServiceLatest {
     logTrace && logStop(methodName, 'result', result);
     return result;
   }
-
-  /**
-   * Prepares the event and the outbox instance to publish a domain created event.
-   * Note that the domainChangeEventsEnabled flag must be set to publish events.
-   * @param createContactEvent 
-   * @param aggregate 
-   */
-  // async prepareDomainCreatedEvent(
-  //   createContactEvent: CreateContactEvent, 
-  //   aggregate: ContactAggregate)
-  // {
-  //   const methodName = 'prepareDomainCreatedEvent';
-  //   logTrace && logStart([methodName, 'createContactEvent','aggregate'], arguments);
-  //   /* If flag is disabled to publish domain change events, return */
-  //   if (!this.domainChangeEventsEnabled) {  
-  //     return;  
-  //   } 
-  //   /* extract version from aggregate to pass down to include in domainCreated event */
-  //   const contact = aggregate.contact;
-  //   const version: number = contact.version;
-
-  //   /* create serialized contactCreatedEvent */
-  //   const serializedContactCreatedEvent = this.domainChangeEventFactory.genCreatedEventFor(
-  //     createContactEvent, version
-  //   );
   
-  //   /* create Outbox Instance of contactCreatedEvent, from createContactEvent */
-  //   let contactOutboxInstance: ContactOutbox = await this.outboxService.createContactCreatedInstance(
-  //         createContactEvent, 
-  //         serializedContactCreatedEvent
-  //       );
-
-  //   logTrace && logStop(methodName, 'contactOutboxInstance',contactOutboxInstance);
-  //   /* append instance to the aggregate  */
-  //   // aggregate.contactOutbox = contactOutboxInstance;
-  // }
-
-  /**
-   * Prepares the event and the outbox instance to publish a domain updated event.
-   * Note that the domainChangeEventsEnabled flag must be set to publish events.
-   * @param createContactEvent 
-   * @param aggregate 
-   */
-  async prepareDomainUpdatedEvent(
-    updateContactEvent: UpdateContactEvent, 
-    aggregate: ContactAggregate) 
-  {
-    const methodName = 'prepareDomainUpdatedEvent';
-    logTrace && logStart([methodName, 'updateContactEvent','aggregate'], arguments);
-    /* If flag is disabled to publish domain updated events, return */
-    if (!this.domainChangeEventsEnabled) {  
-      return;  
-    } 
-
-    /* extract version from aggregate to pass down to include in updatedConsumerEvent */
-    const contact = aggregate.contact;
-    const version: number = contact.version;
-
-    /* create serialized contactCreatedEvent */
-    const serializedContactUpdatedEvent = this.domainChangeEventFactory.genUpdatedEventFor(updateContactEvent, version);
-
-    /* create Outbox Instance of contactCreatedEvent, from createContactEvent */
-    let contactOutboxInstance: ContactOutbox = await this.outboxService.generateContactUpdatedInstance(
-          updateContactEvent, 
-          serializedContactUpdatedEvent
-        );
-    /* append instance to the aggregate  */
-    logTrace && logStop(methodName, 'contactOutboxInstance',contactOutboxInstance);
-    // aggregate.contactOutbox = contactOutboxInstance;
-  }
 
   // *****************************************************************
   // Helper methods
   // *****************************************************************
-
-  // async getNextOutboxSequence() {
-  //    // get query that joins the 3 tables
-  //    let sqlStatement = "SELECT NEXTVAL('contact_id_seq')";
-  //    const sqlResult = await this.dataSource.query(sqlStatement);
-  //    const nextSeqNum = sqlResult[0].nextval;
-  //    return nextSeqNum;
-  // }
 
   createAggregateError(email) {
     let createError = new ServerError(500);
@@ -351,7 +165,7 @@ export class ContactServiceLatest {
   notFoundContactError(id) {
     const duplicateError = new ClientError(404); /* this sets generic message */
     // duplicateError.setReason(ClientErrorReasons.KeysNotInDatabase);
-    duplicateError.setLongMessage(`contact id '${id}'`);
+    duplicateError.setLongMessage(`contact id: ${id}`);
     return duplicateError;
   }
 }
