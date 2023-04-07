@@ -19,6 +19,8 @@ import {
 import { ContactQueryService } from '../dbqueries/services/contact.query.service';
 import { logStart, logStop } from '../../utils/trace.log';
 import { StepResult } from './types/step.result';
+import { CreateContactResponse } from '../responses';
+import { ServerError } from '../../common/errors';
 
 const logTrace = false;
 
@@ -60,12 +62,6 @@ export class CreateContactSaga {
 
     // INITIATE SAGA PROCESS
     // =============================================================================
-    // STEP 0: CHECK IF CONTACT EXISTS, if so, about saga process.
-    // result = await this.createAggregate(createContactProcess, createContactEvent); /* returns the aggregate */
-    // const contactAggregate = result.data;
-    // createContactProcess = result.processStatus;
-
-    // =============================================================================
     // STEP 1: CREATE AGGREGATE from the CreateContactEvent payload; 
     result = await this.createAggregate(createProcess, createContactEvent); /* returns the aggregate */
     const contactAggregate = result.data;
@@ -79,41 +75,80 @@ export class CreateContactSaga {
 
     // =============================================================================
     // STEP 3: GENERATE CREATED EVENT; if domainChange events 
-    result = await this.generateCreatedEvent(createProcess, createContactEvent, savedAggregate);
-    let serializedCreatedEvent = result.data 
-    createProcess = result.processStatus
-
-    console.log("createProcess" ,createProcess)
+    let serializedCreatedEvent = null; 
+    if (this.domainChangeEventsNotEnabled()) { /* bypass step by updating successflag to true */
+      createProcess = updateProcessStatus(createProcess, 'step3', true)    
+    } else {
+      result = await this.generateCreatedEvent(createProcess, createContactEvent, savedAggregate);
+      serializedCreatedEvent = result.data 
+      createProcess = result.processStatus
+    }
 
     // =============================================================================
     // STEP 4: CREATE OUTBOX INSTANCE: If domainChange events are disabled, 
-    result = await this.createOutboxInstance(createProcess, createContactEvent, serializedCreatedEvent);
-    let outboxInstance = result.data; 
-    createProcess = result.processStatus;
+    let outboxInstance = null;
+    if (this.domainChangeEventsNotEnabled()) { /* bypass step by updating successflag to true */
+      createProcess = updateProcessStatus(createProcess, 'step4', true)    
+    } else {
+      result = await this.createOutboxInstance(createProcess, createContactEvent, serializedCreatedEvent);
+      outboxInstance = result.data; 
+      createProcess = result.processStatus;
+    }
 
     // =============================================================================
     // STEP 5: SAVE OUTBOX
-    result = await this.saveOutbox(createProcess, outboxInstance);
-    let savedOutboxInstance = result.data; 
-    createProcess = result.processStatus;
+    let savedOutboxInstance = null;
+    let previousStepsSuccessful = isStepsSuccessful([
+      'step1', 'step2', 'step3', 'step4'
+    ], createProcess);
+    if (this.domainChangeEventsNotEnabled()) { /* bypass step by updating successflag to true */
+      createProcess = updateProcessStatus(createProcess, 'step5', true)    
+    } else { 
+      /* if previous steps were successful, set rollback trigger */
+      if (!previousStepsSuccessful) {  
+        createProcess = setRollbackTrigger(createProcess)
+      } else {  /* otherwise update outbox  */
+        result = await this.saveOutbox(createProcess, outboxInstance);
+        savedOutboxInstance = result.data; 
+        createProcess = result.processStatus;
+      }
+    }
+    /* if this step was not successful or rollback was triggered, do rollback */
+    if (!createProcess['step5'].success || createProcess['rollbackTriggered']) {
+      const rollbackMethods = [this.rollbackSaveAggregate]; /* rollback methods in reverse order*/
+      await this.rollbackSaga(rollbackMethods)
+    }
   
     // =============================================================================
     // STEP 6: TRIGGER OUTBOX 
-    result = await this.triggerOutbox(createProcess, savedAggregate.contact.accountId);
-    let publishingCmdResult = result.data; 
-    createProcess = result.processStatus;
-
+    let publishingCmdResult = null;
+    /* bypass step by updating successflag to true */
+    if (this.domainChangeEventsNotEnabled()) { 
+      createProcess = updateProcessStatus(createProcess, 'step6', true)    
+    } 
+    /* trigger outbox ony if domain change events enabled and save aggregate(step2) was successful */
+    if (this.domainChangeEventsEnabled() && createProcess['step2'].success) {
+      result = await this.triggerOutbox(createProcess, savedAggregate.contact.accountId);
+      publishingCmdResult = result.data; 
+      createProcess = result.processStatus;
+    } 
+    
     // =============================================================================
-    // FINALIZE STEP: LOG ERROR if saga was not successful
-    const sagaResult = getSagaResult(createProcess);
-    const { sagaSuccessful, sagaFailureReason } = sagaResult;
-    if (!sagaSuccessful) {
-      console.log("ERROR ",JSON.stringify(sagaResult,null,2))
+    // FINALIZE STEP: if saga successful,  return deleted data object in the 
+    // response otherwise, return error response and the log error 
+    createProcess = getSagaResult(createProcess, 'create_contact_saga');
+    let sagaResponse: any;
+    if (createProcess['sagaSuccessful']) {
+      sagaResponse = new CreateContactResponse(savedAggregate.contact.id)
+    } else {
+      let errorMsg = createProcess['sagaFailureReason'];
+      sagaResponse = this.contactSagaError(errorMsg, '')
+      this.logErrorIfExists(createProcess);
     }
 
     // =============================================================================
     // RETRUN SAGA RESPONSE to contact service, which will convert to hypermedia response
-    return savedAggregate;
+    return sagaResponse;
   }
 
   //****************************************************************************** */
@@ -127,12 +162,15 @@ export class CreateContactSaga {
    * @returns result
    */
   async createAggregate(processStatus, createContactEvent: CreateContactEvent): Promise<StepResult> {
-    const methodName = 'createAggregate'
+    const methodName = 'createAggregate';
     logTrace && logStart([methodName, 'processStatus', 'createContactEvent'], arguments)
+
     /* Intialize result object */
     let result: StepResult = { data: null, processStatus: null };
+
     /* Business logic: Create Aggregate  */
     const contactAggregate = await this.contactAggregateService.createAggregate(createContactEvent);
+
     /* Update process success based on result */
     processStatus = updateProcessStatus(processStatus, 'step1', true)
 
@@ -149,8 +187,9 @@ export class CreateContactSaga {
    * @returns result
    */
   async saveAggregate(processStatus, aggregate: ContactAggregate): Promise<StepResult> {
-    const methodName = 'saveAggregate'
-    logTrace && logStart([methodName, 'processStatus', 'saveAggregate'], arguments)
+    const methodName = 'saveAggregate';
+    logTrace && logStart([methodName, 'processStatus', 'aggregate'], arguments);
+
     /* Intialize result object */
      let result: StepResult = { data: null, processStatus: null };
 
@@ -178,11 +217,6 @@ export class CreateContactSaga {
   generateCreatedEvent(processStatus, createContactEvent: CreateContactEvent, savedAggregate: ContactAggregate): StepResult {
     const methodName = 'generateCreatedEvent'
     logTrace && logStart([methodName, 'processStatus', 'createContactEvent', 'savedAggregate'], arguments)
-    /* Intialize result object */
-    let result: StepResult = { data: null, processStatus: null };
-
-    /* bypass create generating creating event if domainChangeEvents disabled */
-    if (!this.domainChangeEventsEnabled()) { return result; };
 
     /* Business Logic: create serialized contactCreatedEvent */
     const serializedCreatedEvent = this.domainChangeEventFactory.genCreatedEventFor(
@@ -192,7 +226,7 @@ export class CreateContactSaga {
     processStatus = updateProcessStatus(processStatus, 'step3', true)
 
     /* Return Result */
-    result = { data: serializedCreatedEvent, processStatus };
+    let result = { data: serializedCreatedEvent, processStatus };
     logTrace && logStop(methodName, 'result', result)
     return result;
   }
@@ -211,16 +245,8 @@ export class CreateContactSaga {
   {
     const methodName = 'createOutboxInstance';
     logTrace && logStart([methodName, 'processStatus', 'createContactEvent','serializedContactCreatedEvent'], arguments);
-   
-    /* If flag is disabled to publish domain change events, return null */
-    if (!this.domainChangeEventsEnabled()) { return null; };
-     
-    /* Intialize result object */
-    let result: StepResult = { data: null, processStatus: null };
 
-    console.log("Process before isStepsSuccessful ", JSON.stringify(processStatus,null,2))
-
-    /* Check prior step status */
+    /* Get prior step status */
     let previousStepsSuccessful = isStepsSuccessful(['step1', 'step2', 'step3'], processStatus);
 
     /* Business Logic: create Outbox Instance of contactCreatedEvent, from createContactEvent */
@@ -238,7 +264,7 @@ export class CreateContactSaga {
     }
 
     /* return result */
-    result = { data: contactOutboxInstance, processStatus }
+    let result = { data: contactOutboxInstance, processStatus }
     logTrace && logStop(methodName, 'result', result);
     return result;
   }
@@ -252,16 +278,10 @@ export class CreateContactSaga {
   async saveOutbox(processStatus, contactOutboxInstance): Promise<StepResult> {
     const methodName = 'saveOutbox';
     logTrace && logStart([methodName, 'processStatus','contactOutboxInstance'], arguments);
+
     /* Intialize result object */
     let result: StepResult = { data: null, processStatus: null };
     let savedOutboxInstance: ContactOutbox = null;
-
-    /* bypass creating event if domainChangeEvents disabled. Bypassing is considered successful */
-    if (!this.domainChangeEventsEnabled()) { 
-      processStatus = updateProcessStatus(processStatus, 'step5', true)
-      result.processStatus = processStatus;
-      return result; 
-    };
 
     /* Business Logic: If no prior failures, save outbox */
     let previousStepsSuccessful = isStepsSuccessful(['step1', 'step2', 'step3', 'step4'], processStatus);
@@ -295,8 +315,8 @@ export class CreateContactSaga {
     /* Business Logic: Sends command to outbox to publish unpublished events in outbox for a given account */
     const cmdResult: any = await this.domainChangeEventManager.triggerOutboxForAccount(accountId);
 
-    /* update process status */
-    processStatus = setRollbackTrigger(processStatus)
+    /* Update process as successful */
+    processStatus = updateProcessStatus(processStatus, 'step6', true)
 
     /* return result */
     result = { data: cmdResult, processStatus }
@@ -338,7 +358,7 @@ export class CreateContactSaga {
     console.log('OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO')
   }
 
-  // Save outbox compensation 
+  // Save outbox compensation method
   async rollbackSaveOutbox() {
 
     /* update step status */
@@ -357,6 +377,9 @@ export class CreateContactSaga {
     if (domainChangeEventsEnabled === 'true' )  { return true;  } 
     if (domainChangeEventsEnabled === 'false' )  { return false; } 
   }
+  domainChangeEventsNotEnabled(): boolean {
+    return !this.domainChangeEventsEnabled()
+  }
 
   /**
    * Used as last step of the Saga to log an error if it occurred
@@ -369,6 +392,17 @@ export class CreateContactSaga {
       console.log("ERROR ",JSON.stringify(sagaResult,null,2))
     }
   }
+
+   /**
+   * Return Server error
+   * @param processStatus 
+   * @param id
+   */
+   contactSagaError(failureReason: string, id) {
+    const sagaError = new ServerError(500); /* this sets generic message */
+    sagaError.setReason(failureReason)
+    return sagaError;
+  }
   
-}
+} 
   

@@ -55,8 +55,7 @@ export class ContactServiceLatest {
   ) { }
   
   /**
-   * Create aggregate using create.contact.saga and convert return value to hypermedia response.
-   * Provide standard data or error responses
+   * Create aggregate using create.contact.saga which returns value as hypermedia response.
    * @param createContactEvent 
    * @returns createContactResponse | ServerError
    */ 
@@ -74,21 +73,11 @@ export class ContactServiceLatest {
     }
 
     /* Run the create contact saga */
-    const aggregate: ContactAggregate = await this.createContactSaga.execute(createContactEvent);
-        
-    /* if save was NOT successful, return error response */
-    if (!aggregate.contact) { 
-      const serverError: ServerError =  this.createAggregateError(message.email);  
-      logTrace && logStop(methodName, 'serverError', serverError);
-      return serverError;
-    }
+    let sagaResult: CreateContactResponse | BaseError;
+    sagaResult = await this.createContactSaga.execute(createContactEvent);
 
-    /* if successful (contact exists in aggregate), construct hypermdedia like response */
-    const { contact } = aggregate;
-    let createContactResponse: CreateContactResponse = new CreateContactResponse(contact.id);
-
-    logTrace && logStop(methodName, 'createContactResponse', createContactResponse);
-    return createContactResponse;
+    logTrace && logStop(methodName, 'sagaResult', sagaResult);
+    return sagaResult;
   }
 
   /**

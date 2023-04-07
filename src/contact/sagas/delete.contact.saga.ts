@@ -20,6 +20,7 @@ import { logStart, logStop } from '../../utils/trace.log';
 import { StepResult } from './types/step.result';
 import { DeleteTransactionResult } from '../transactions/types/delete.transaction.result';
 import { DeleteContactResponse } from '../responses';
+import { ServerError } from '../../common/errors';
 
 const logTrace = false;
 
@@ -65,80 +66,106 @@ export class DeleteContactSaga {
     let contactAggregate = result.data;
     deleteProcess = result.processStatus;
 
-    // // =============================================================================
-    // // STEP 2: DELETE AGGREGATE
-    // result =  await this.deleteAggregate(deleteProcess, contactAggregate);
-    // let deleteTranResult: DeleteTransactionResult = result.data;
-    // deleteProcess = result.processStatus;
+    // =============================================================================
+    // STEP 2: DELETE AGGREGATE
+    let deleteTranResult: DeleteTransactionResult;
+    if (deleteProcess['step1'].success) {
+      result =  await this.deleteAggregate(deleteProcess, contactAggregate);
+      deleteTranResult = result.data;
+      deleteProcess = result.processStatus;
+    }
 
-    // // =============================================================================
-    // // STEP 3: GENERATE CONTACT DELETED EVENT; Only if domainChangeEvents flag is true.
-    // // If false, update step in deleteProcess as successful, otherwise saga will fail.
-    // let serializedContactDeletedEvent = '';
-    // if (this.domainChangeEventsEnabled()) { 
-    //   result = this.generateContactDeletedEvent(deleteProcess, deleteContactEvent, contactAggregate);
-    //   serializedContactDeletedEvent = result.data;
-    //   deleteProcess = result.processStatus;
-    // } else {
-    //   deleteProcess = updateProcessStatus(deleteProcess, 'step3', true)  
-    // }
+    // =============================================================================
+    // STEP 3: GENERATE CONTACT DELETED EVENT; Only if domainChangeEvents flag is true.
+    // If false, update step in deleteProcess as successful, otherwise saga will fail.
+    let serializedContactDeletedEvent = '';
+    if (this.domainChangeEventsEnabled() && deleteProcess['step2'].success) { 
+      result = this.generateContactDeletedEvent(deleteProcess, deleteContactEvent, contactAggregate);
+      serializedContactDeletedEvent = result.data;
+      deleteProcess = result.processStatus;
+    } 
+    /* signals to saga that it is ok to bypass this step */
+    if (this.domainChangeEventsNotEnabled()) { 
+      deleteProcess = updateProcessStatus(deleteProcess, 'step3', true)  
+    }
 
-    // // =============================================================================
-    // // STEP 4: CREATE OUTBOX INSTANCE
-    // let outboxInstance = null;
-    // if (this.domainChangeEventsEnabled()) { 
-    //   result = this.createOutboxInstance(deleteProcess, deleteContactEvent, serializedContactDeletedEvent);
-    //   outboxInstance = result.data;
-    //   deleteProcess  = result.processStatus;
-    // } else {
-    //   deleteProcess = updateProcessStatus(deleteProcess, 'step4', true)  
-    // }
+    // =============================================================================
+    // STEP 4: CREATE OUTBOX INSTANCE
+    let outboxInstance = null;
+    if (this.domainChangeEventsEnabled() && deleteProcess['step2'].success) { 
+      result = this.createOutboxInstance(deleteProcess, deleteContactEvent, serializedContactDeletedEvent);
+      outboxInstance = result.data;
+      deleteProcess  = result.processStatus;
+    }  
+    /* signals to saga that it is ok to bypass this step */
+    if (this.domainChangeEventsNotEnabled()) { 
+      deleteProcess = updateProcessStatus(deleteProcess, 'step4', true)  
+    }
 
-    // // =============================================================================
-    // // STEP 5: SAVE OUTBOX INSTANCE - this is a Pivot step
-    // let savedOutboxInstance = null;
-    // let previousStepsSuccessful = isStepsSuccessful([
-    //   'step1', 'step2', 'step3', 'step4'
-    // ], deleteProcess);
-    // if (this.domainChangeEventsNotEnabled()) { /* bypass step by updating successflag to true */
-    //   deleteProcess = updateProcessStatus(deleteProcess, 'step5', true)    
-    // } else { 
-    //   /* if previous steps not successful, set rollback trigger */
-    //   if (!previousStepsSuccessful) {  
-    //     deleteProcess = setRollbackTrigger(deleteProcess)
-    //   } else {  /* otherwise update outbox  */
-    //     result = await this.saveOutboxInstance(deleteProcess, outboxInstance);
-    //     savedOutboxInstance = result.data;
-    //     deleteProcess = result.processStatus;
-    //   }
-    // }
-    // /* if this step was not successful or rollback was triggered, do rollback */
-    // if (!deleteProcess['step5'].success || deleteProcess['rollbackTriggered']) {
-    //   const rollbackMethods = [this.rollbackDeleteAggregate]; /* rollback methods in reverse order*/
-    //   await this.rollbackSaga(rollbackMethods)
-    // }
+    // =============================================================================
+    // STEP 5: SAVE OUTBOX INSTANCE - this is a Pivot step
+    let savedOutboxInstance = null;
+    let previousStepsSuccessful = isStepsSuccessful([
+      'step1', 'step2', 'step3', 'step4'
+    ], deleteProcess);
+    if (this.domainChangeEventsNotEnabled()) { 
+      /* signals to saga that its ok to bypass step */
+      deleteProcess = updateProcessStatus(deleteProcess, 'step5', true)    
+    } else { 
+      /* if previous steps not successful, set rollback trigger */
+      if (!previousStepsSuccessful) {  
+        deleteProcess = setRollbackTrigger(deleteProcess)
+      } else {  /* otherwise update outbox  */
+        result = await this.saveOutboxInstance(deleteProcess, outboxInstance);
+        savedOutboxInstance = result.data;
+        deleteProcess = result.processStatus;
+      }
+    }
+    /* if this step was not successful or rollback was triggered, do rollback */
+    if (!deleteProcess['step5'].success || deleteProcess['rollbackTriggered']) {
+      const rollbackMethods = [this.rollbackDeleteAggregate]; /* rollback methods in reverse order*/
+      await this.rollbackSaga(rollbackMethods)
+    }
   
-    // // =============================================================================
-    // // STEP 6: TRIGGER OUTBOX - publishes
-    // result = await this.triggerOutbox(deleteProcess, contactAggregate.accountId);
-    // let publishingCmdResult = result.data; 
-    // deleteProcess = result.processStatus;
+    // =============================================================================
+    // STEP 6: TRIGGER OUTBOX - publish outbox events as long aggregate id was loaded
+    // and accountid is available. 
+    let publishingCmdResult: any = null; 
+    let { contact } = contactAggregate;
+    if (this.domainChangeEventsEnabled() && deleteProcess['step1'].success) { 
+      if (contact.id) {
+        result = await this.triggerOutbox(deleteProcess, contact.accountId);
+        let publishingCmdResult = result.data; 
+        deleteProcess = result.processStatus;
+      }
+    }
+    if (this.domainChangeEventsNotEnabled()) {
+      deleteProcess = updateProcessStatus(deleteProcess, 'step6', true)    
+    }
 
     // =============================================================================
     // STEP 7: GENERATE DELETED DATA
-    result = await this.generateDeletedData(deleteProcess, contactAggregate);
-    let deletedData = result.data; 
-    deleteProcess = result.processStatus;
+    let deletedData: any = null;
+    if (deleteProcess['step1'].success) { 
+      result = await this.generateDeletedData(deleteProcess, contactAggregate);
+      deletedData = result.data; 
+      deleteProcess = result.processStatus;
+    }
 
     // =============================================================================
-    // FINALIZE STEP: LOG ERROR if failure in saga updateProcess
-    this.logErrorIfExists(deleteProcess)
-
-    // =============================================================================
-    // RETRUN SAGA RESPONSE to contact service, which will convert to hypermedia response
-    let deleteContactResponse = new DeleteContactResponse(deletedData)
+    // FINALIZE STEP: if saga successful,  return deleted data object in the 
+    // response otherwise, return error response and the log error 
+    deleteProcess = getSagaResult(deleteProcess, 'delete_contact_saga');
+    let sagaResponse: any;
+    if (deleteProcess['sagaSuccessful']) {
+      sagaResponse = new DeleteContactResponse(deletedData)
+    } else {
+      let errorMsg = deleteProcess['sagaFailureReason'];
+      sagaResponse = this.contactSagaError(errorMsg, deleteContactEvent.message.id)
+      this.logErrorIfExists(deleteProcess);
+    }
     
-    return deleteContactResponse;
+    return sagaResponse;
   }
 
   //****************************************************************************** */
@@ -435,12 +462,27 @@ export class DeleteContactSaga {
    * @param processStatus 
    */
   logErrorIfExists (processStatus) {
+    const methodName = 'logErrorIfExists';
+    let logTrace = true;
+    logTrace && logStart([methodName, 'processStatus'], arguments)
     const sagaResult = getSagaResult(processStatus);
     const { sagaSuccessful, sagaFailureReason } = sagaResult;
     if (!sagaSuccessful) {
       console.log("ERROR ",JSON.stringify(sagaResult,null,2))
     }
+    logTrace && logStop(methodName, 'sagaResult', sagaResult)
   }
   
+  /**
+   * Return Server error
+   * @param processStatus 
+   * @param id
+   */
+  contactSagaError(failureReason: string, id) {
+    const sagaError = new ServerError(500); /* this sets generic message */
+    sagaError.setReason(failureReason)
+    return sagaError;
+  }
+
 }
   

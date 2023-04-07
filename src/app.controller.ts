@@ -47,7 +47,7 @@ import { ContactAggregate } from './contact/types/contact.aggregate';
 import { ContactServiceLatest } from './contact/services/contact.service.latest';
 import * as R from 'ramda';
 
-const logTrace = true;
+const logTrace = false;
 
 @UseFilters(new ExceptionFilter())
 @Controller()

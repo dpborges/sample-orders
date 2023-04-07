@@ -24,7 +24,7 @@ export class ServerError extends BaseError {
     switch (statusCode) {
       case 500:
         this.setStatusCode(500);
-        this.setMessage("Server Issue");
+        this.setMessage("Internal Server Error");
         break;
       default:
     }

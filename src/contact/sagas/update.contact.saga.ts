@@ -18,6 +18,7 @@ import { ContactQueryService } from '../dbqueries/services/contact.query.service
 import { UpdateContactResponse } from '../responses/update.contact.response'; 
 import { logStart, logStop } from '../../utils/trace.log';
 import { StepResult } from './types/step.result';
+import { ServerError } from '../../common/errors';
 
 const logTrace = false;
 
@@ -65,27 +66,36 @@ export class UpdateContactSaga {
 
     // =============================================================================
     // STEP 2: GENERATE BEFORE AND AFTER IMAGES
-    result = this.generateBeforeAndAfterImages(updateProcess, updateContactEvent, contactAggregate);
-    let beforeAfterImages = result.data;
-    updateProcess = result.processStatus;
+    let beforeAfterImages = null;
+    if (updateProcess['step1'].success) { 
+      result = this.generateBeforeAndAfterImages(updateProcess, updateContactEvent, contactAggregate);
+      beforeAfterImages = result.data;
+      updateProcess = result.processStatus;
+    }
 
     // =============================================================================
     // STEP 3: APPLY UPDATES TO AGGREGATE
-    result = this.applyUpdates(updateProcess, updateContactEvent, contactAggregate);
-    let updatedAggregate = result.data;
-    updateProcess = result.processStatus;
+    let updatedAggregate = null;
+    if (updateProcess['step1'].success) { 
+      result = this.applyUpdates(updateProcess, updateContactEvent, contactAggregate);
+      updatedAggregate = result.data;
+      updateProcess = result.processStatus;
+    }
 
     // =============================================================================
     // STEP 4: SAVE AGGREGATE
-    result = await this.saveAggregate(updateProcess, updatedAggregate);
-    let savedAggregate = result.data;
-    updateProcess = result.processStatus;
+    let savedAggregate; null
+    if (isStepsSuccessful(['step1', 'step3'], updateProcess)) { 
+      result = await this.saveAggregate(updateProcess, updatedAggregate);
+      savedAggregate = result.data;
+      updateProcess = result.processStatus;
+    }
 
     // =============================================================================
     // STEP 5: GENERATE CONTACT UPDATED EVENT; If domainChangeEvents are not enabled,
     // bypass step by setting success flag to true, otherwise saga would be considered failed.
     let serializedContactUpdateEvent = '';
-    if (this.domainChangeEventsEnabled()) { 
+    if (this.domainChangeEventsEnabled() && updateProcess['step4'].success) { 
       result = this.generateContactUpdatedEvent(updateProcess, updateContactEvent, savedAggregate);
       serializedContactUpdateEvent = result.data;
       updateProcess = result.processStatus;
@@ -96,11 +106,12 @@ export class UpdateContactSaga {
     // =============================================================================
     // STEP 6: CREATE OUTBOX INSTANCE
     let outboxInstance = null;
-    if (this.domainChangeEventsEnabled()) { 
+    if (this.domainChangeEventsEnabled() && updateProcess['step5'].success) { 
       result = this.createOutboxInstance(updateProcess, updateContactEvent, serializedContactUpdateEvent);
       outboxInstance = result.data;
       updateProcess = result.processStatus;
-    } else {
+    } 
+    if (this.domainChangeEventsNotEnabled()) {
       updateProcess = updateProcessStatus(updateProcess, 'step6', true)  
     }
 
@@ -129,21 +140,30 @@ export class UpdateContactSaga {
     }
   
     // =============================================================================
-    // STEP 8: TRIGGER OUTBOX - publishes
-    result = await this.triggerOutbox(updateProcess, savedAggregate.contact.accountId);
-    let publishingCmdResult = result.data; 
-    updateProcess = result.processStatus;
+    // STEP 8: TRIGGER OUTBOX - publishes saved events
+    let publishingCmdResult = null; 
+    if (updateProcess['step7'].success) {
+      result = await this.triggerOutbox(updateProcess, savedAggregate.contact.accountId);
+      publishingCmdResult = result.data; 
+      updateProcess = result.processStatus;
+    }
 
     // =============================================================================
-    // FINALIZE STEP: LOG ERROR if failure in saga updateProcess
-    this.logErrorIfExists(updateProcess)
-
-    // =============================================================================
-    // RETRUN SAGA RESPONSE to contact service, which will convert to hypermedia response
-    const updateContactResponse: UpdateContactResponse = new UpdateContactResponse(savedAggregate.contact.id);
-    updateContactResponse.setDataChanges(beforeAfterImages);
-    return updateContactResponse;
-    // return result;
+    // FINALIZE STEP: if saga successful,  return hypermedia response 
+    // otherwise, return error response and the log error 
+    updateProcess = getSagaResult(updateProcess, 'update_contact_saga');
+    let sagaResponse: any;
+    // const updateContactResponse: UpdateContactResponse;
+    if (updateProcess['sagaSuccessful']) {
+      sagaResponse = new UpdateContactResponse(savedAggregate.contact.id);
+      sagaResponse.setDataChanges(beforeAfterImages);
+    } else {
+      let errorMsg = updateProcess['sagaFailureReason'];
+      sagaResponse = this.contactSagaError(errorMsg, savedAggregate.contact.id)
+      this.logErrorIfExists(updateProcess);
+    }
+    
+    return sagaResponse;
   }
 
   //****************************************************************************** */
@@ -167,8 +187,10 @@ export class UpdateContactSaga {
     const { id, accountId, ...updateProperties }  = message; 
     const aggregate: ContactAggregate = await this.contactAggregateService.getAggregateEntitiesBy(accountId, id);
 
-    /* Update process success based on result */
-    processStatus = updateProcessStatus(processStatus, 'step1', true)
+    /* Update process success based on result; by default success is false */
+    if (aggregate.contact) {
+      processStatus = updateProcessStatus(processStatus, 'step1', true)
+    }
 
     /* return Result */
     result = { data: aggregate, processStatus };
@@ -440,6 +462,17 @@ export class UpdateContactSaga {
     if (!sagaSuccessful) {
       console.log("ERROR ",JSON.stringify(sagaResult,null,2))
     }
+  }
+
+  /**
+   * Return Server error
+   * @param processStatus 
+   * @param id
+   */
+  contactSagaError(failureReason: string, id) {
+    const sagaError = new ServerError(500); /* this sets generic message */
+    sagaError.setReason(failureReason)
+    return sagaError;
   }
   
 }

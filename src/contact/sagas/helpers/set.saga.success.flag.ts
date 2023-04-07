@@ -9,12 +9,12 @@ const logTrace = true;
    * @param success provides whether process step completed successful
    * @returns updatedProcess
    */
- export function updateProcessStatus(process, step:string, success: boolean) {
-  const methodName = 'updateProcessStatus'
-  logTrace && logStart([methodName, 'process', 'step', 'success'], arguments)
+ export function setSagaSuccessFlag(process, successFlag: boolean) {
+  const methodName = 'setSagaSuccessFlag'
+  logTrace && logStart([methodName, 'process', 'successFlag'], arguments)
 
   let processCopy = { ...process };
-  processCopy[step].success = success;  /* assign success status */
+  processCopy['sagaSuccessful'] = successFlag;  /* assign success status */
 
   logTrace && logStop(methodName, 'processCopy', processCopy)
   return processCopy;
