@@ -6,7 +6,6 @@ import { ContactOutbox } from 'src/outbox/entities/contact.outbox.entity';
 import { ContactCreatedEvent, ContactUpdatedEvent, ContactDeletedEvent } from '../../events/contact/domainChanges';
 import { logStart, logStop } from 'src/utils/trace.log';
 import { Subjects } from 'src/events/contact/domainChanges';
-// import { AggregrateService } from './aggregrate/aggregrate.service';
 
 const logTrace = true;
 

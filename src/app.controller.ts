@@ -44,7 +44,7 @@ import { ContactUpdatedEvent } from './events/contact/domainChanges';
 import { logStart, logStop, logStartVal } from './utils/trace.log';
 import { ClientErrorReasons, ClientError } from './common/errors';
 import { ContactAggregate } from './contact/types/contact.aggregate';
-import { ContactServiceLatest } from './contact/services/contact.service.latest';
+import { ContactService } from './contact/services/contact.service';
 import * as R from 'ramda';
 
 const logTrace = false;
@@ -55,7 +55,7 @@ export class AppController {
 
   constructor(
     private readonly appService: AppService,
-    private readonly contactServiceLatest: ContactServiceLatest,
+    private readonly contactService: ContactService,
     // private readonly contactAggregate: ContactAggregate
     // private readonly contactService: ContactService,
     private readonly outboxService:  OutboxService,
@@ -190,7 +190,7 @@ export class AppController {
     console.log('MS - ....with header', header);
     console.log('MS - ....with message', message);
     // let cmdResult: CreateContactResponse | BaseError;
-    let cmdResult: any =  await this.contactServiceLatest.createContact(payload)
+    let cmdResult: any =  await this.contactService.createContact(payload)
     return cmdResult;
   }
 
@@ -207,7 +207,7 @@ export class AppController {
     console.log('MS - ....with data', payload);
     console.log('MS - ....with header', header);
     console.log('MS - ....with message', message);
-    const cmdResult: any  =  await this.contactServiceLatest.updateContact(payload)
+    const cmdResult: any  =  await this.contactService.updateContact(payload)
     // Here you create Order and insert CreatedOrderEvent to the event database
     // as a single transaction. The publish flag will be false false
     console.log("UPDATE CONTACT CMD RESULT ", cmdResult)
@@ -228,7 +228,7 @@ export class AppController {
     console.log('MS - ....with data', payload);
     console.log('MS - ....with header', header);
     console.log('MS - ....with message', message);
-    const cmdResult: any  =  await this.contactServiceLatest.deleteContact(payload)
+    const cmdResult: any  =  await this.contactService.deleteContact(payload)
     // Here you create Order and insert CreatedOrderEvent to the event database
     // as a single transaction. The publish flag will be false false
     console.log("UPDATE CONTACT CMD RESULT ", cmdResult)

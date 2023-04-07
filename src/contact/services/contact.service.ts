@@ -2,16 +2,16 @@ import { Repository, DataSource } from 'typeorm';
 import { RepoToken } from '../../db-providers/repo.token.enum';
 // import { UpdateContactResponse } from '../responses/update.contact.response';
 import { ConfigModule } from '@nestjs/config';
-import { OutboxService } from './../../outbox/outbox.service';
-import { CreateContactResponse } from './../responses/create.contact.response';
+import { OutboxService } from '../../outbox/outbox.service';
+import { CreateContactResponse } from '../responses/create.contact.response';
 // import { ContactSaveService } from './../contact.save.service';
-import { Contact } from './../entities/contact.entity';
+import { Contact } from '../entities/contact.entity';
 import { Injectable, Inject } from '@nestjs/common';
 // import { ContactAggregate } from '../types/contact.aggregate';
 import { ContactAggregateService } from './contact.aggregate.service';
 import { ContactAggregate } from '../types/contact.aggregate';
 import { CreateContactEvent } from '../../events/contact/commands';
-import { CreateEntityResponse } from '../..//common/responses/command.response-Delete';
+import { CreateEntityResponse } from '../../common/responses/command.response-Delete';
 import { ContactCreatedEvent } from '../../events/contact/domainChanges';
 import { CustomNatsClient } from 'src/custom.nats.client.service';
 import { ContactOutbox } from '../../outbox/entities/contact.outbox.entity';
@@ -23,21 +23,25 @@ import { DataChanges } from '../../common/responses/base.response';
 import { UpdateContactEvent, DeleteContactEvent } from '../../events/contact/commands';
 import { logStart, logStop } from 'src/utils/trace.log';
 import { BaseError, ClientError } from '../../common/errors';
-import { ServerError, ServerErrorReasons, ClientErrorReasons } from '../../common/errors/';
+import { ServerError, ServerErrorReasons, ClientErrorReasons } from '../../common/errors';
 import { BaseResponse } from '../../common/responses/base.response';
-import { CreateContactSaga, DeleteContactSaga, UpdateContactSaga } from '../sagas/';
+import { CreateContactSaga, DeleteContactSaga, UpdateContactSaga } from '../sagas';
 import { ContactQueryService } from '../dbqueries/services';
 import { DeleteTransactionResult } from '../transactions/types/delete.transaction.result';
 const logTrace = true;
 
 /**
- * Contact Service is called by the Command Handlers (eg Create Contact, Delete Contact, 
- * Update Contact, etc) in the Controller.
+ * Contact Service is the primary interface to the contact microservice controller. Each 
+ * controller command to Create, Delete, or Update Contact makes a call to contact service.
+ * The contact service calls the underlying query service, sagas, or helper services to 
+ * fulfill the request.
  * It does preliminary existence checks before calling the underlying services and/or sagas.
- * This layer standardizes service responses (eg. hypermedia) using response objects
+ * This layer returns response (eg. hypermedia) to microservice controller, which in turn
+ * returns the response to the api-gateway. Standard Response objects are  returned by sagas.
+ * If not, a standard response is constructed by this service before responding to api-gateway.
  */
 @Injectable()
-export class ContactServiceLatest {
+export class ContactService {
   
   private generatedEvents: Array<ContactCreatedEvent> = [];
 

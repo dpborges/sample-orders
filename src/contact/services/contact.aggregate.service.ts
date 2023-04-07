@@ -7,10 +7,10 @@ import { ContactSource } from '../entities/contact.source.entity';
 import { Injectable, Inject } from '@nestjs/common';
 import { Repository, DataSource } from 'typeorm';
 import { Contact } from '../entities/contact.entity';
-import { AggregateRoot } from 'src/aggregrate/aggregateRoot';
+// import { AggregateRoot } from 'src/aggregrate/aggregateRoot';
 import { CreateContactDto } from '../dtos/create.contact.dto';
 import { RepoToken } from '../../db-providers/repo.token.enum';
-import { ContactAggregateEntities } from '../aggregate-types/contact.aggregate.type';
+// import { ContactAggregateEntities } from '../aggregate-types/contact.aggregate.type';
 import { ContactAggregate } from '../types/contact.aggregate'
 import { BusinessRule } from '../business-rules/business-rule.enum';
 // import { TransactionStatus } from './transaction-status.type-DELETE-ts'
@@ -26,13 +26,19 @@ import { DeleteContactTransaction } from '../transactions';
 import { logStart, logStop } from '../../utils/trace.log';
 const logTrace = true;
 
-// Class used to construct aggregate object with related entities from event payload/
-// This class also centralizes aggregate business rules in this one class.
+// Class used to construct aggregate object and related entities from event payload.
+// This class centralizes aggregate business rules in this one class. The aggregate 
+// version is maintained in the aggregate root level (contact relation). The external
+// services reference Aggregate by aggregate root id only. All Creates ,Updates, and
+// Deletes are managed by the AggregateService (this service).
+/**
+ * 
+ */
 @Injectable()
 export class ContactAggregateService  {
 
-  private events: Array<ContactCreatedEvent> = [];
-  private numberOfAggregateEntities = 3;  // used for applying updates
+  // private events: Array<ContactCreatedEvent> = [];
+  // private numberOfAggregateEntities = 3;  // used for applying updates
 
   constructor(
     private createContactTransaction: CreateContactTransaction,
@@ -104,29 +110,17 @@ export class ContactAggregateService  {
     return savedAggregate;
   }
 
-
-  // To Be DELETED
-  /* returns entire aggregate  */
-  // async findById(id): Promise<any> {
-  //   const contact = this.dataSource
-  //     .getRepository(Contact)
-  //     .createQueryBuilder("contact")
-  //     .where("contact.id = :id", {id: 1})
-  //     .getOne()
-  //   return contact;
-  // };
-
   /**
    * Fetches aggregate entities by accountId, email
    * @param accountId 
    * @param email 
    * @returns contactAggregateEntities
    */
-  async getAggregateEntitiesBy(accountId: number, id: number): Promise<ContactAggregateEntities> {
+  async getAggregateEntitiesBy(accountId: number, id: number): Promise<ContactAggregate> {
     const methodName = 'getAggregateEntitiesBy';
     logTrace && logStart([methodName, 'accountId', 'id'], arguments)
     // Initialize mandatory entities only below. Optional entities will be added dynamically
-    let contactAggregateEntities: ContactAggregateEntities = {
+    let contactAggregateEntities: ContactAggregate = {
       contact: null,
       contactAcctRel: null
     };
@@ -180,15 +174,16 @@ export class ContactAggregateService  {
    * @param id 
    * @returns contactAggregateEntities
    */
-  async getAggregateEntitiesById(id: number): Promise<ContactAggregateEntities> {
+  async getAggregateEntitiesById(id: number): Promise<ContactAggregate> {
     const methodName = 'getAggregateEntitiesById';
     logTrace && logStart([methodName, 'id'], arguments)
+
     // Initialize mandatory entities only below. Optional entities will be added dynamically
-    let contactAggregateEntities: ContactAggregateEntities = {
+    let contactAggregateEntities: ContactAggregate = {
       contact: null,
       contactAcctRel: null
     };
-    console.log("LETTER B")
+    
     // Define where clause using database syntax (not camelcase)
     let selectCriteria = `contact.id = ${id}`;
     let whereClause = 'WHERE ' + selectCriteria;
@@ -233,10 +228,7 @@ export class ContactAggregateService  {
     if (sourceId) {  /* optional contact_source; add only if exists */
       contactAggregateEntities.contactSource = this.contactSourceRepository.create(contactSource);
     }
-    console.log("LETTER D")
-    // const contactData = 
-    console.log("CONTACT AGGREGATE ", JSON.stringify(contactAggregateEntities, null, 2));
-
+    
     logTrace && logStop(methodName, "contactAggregateEntities", contactAggregateEntities);
     /* returns only aggregate entities that exist; if not, the entity is omitted*/
     return contactAggregateEntities
@@ -315,13 +307,13 @@ export class ContactAggregateService  {
   // }
   
 
-  applyUpdates(updateRequest, aggregateEntities: ContactAggregateEntities): ContactAggregateEntities {
-    let updatedEntities: ContactAggregateEntities;
+  applyUpdates(updateRequest, aggregateEntities: ContactAggregate): ContactAggregate {
+    let updatedEntities: ContactAggregate;
     updatedEntities = this.applyUpdatesToAggregateEntities(updateRequest, aggregateEntities)
     return updatedEntities;
   }
 
-  generateBeforeAndAfterImages(updateRequest, aggregateEntities: ContactAggregateEntities): DataChanges {
+  generateBeforeAndAfterImages(updateRequest, aggregateEntities: ContactAggregate): DataChanges {
     const beforeAndAfterImages = genBeforeAndAfterImage(updateRequest, aggregateEntities)
     return beforeAndAfterImages;
   }
@@ -336,7 +328,7 @@ export class ContactAggregateService  {
    * @param aggregateEntities 
    * @returns aggregateEntities - after updates applied
    */
-  applyUpdatesToAggregateEntities(updateObject: any, aggregateEntities): ContactAggregateEntities {
+  applyUpdatesToAggregateEntities(updateObject: any, aggregateEntities): ContactAggregate {
     let entityKeys = Object.keys(aggregateEntities);
     console.log("Entity keys ", entityKeys);
 

@@ -15,7 +15,7 @@ import { DomainChangeEventPublisher } from './outbox/domainchange.event.publishe
 import { ConfigModule } from '@nestjs/config';
 import { DomainChangeEventFactory } from './contact/services/domain.change.event.factory';
 import { DomainChangeEventManager } from './outbox/domainchange.event.manager';
-import { ContactServiceLatest } from './contact/services/contact.service.latest';
+import { ContactService } from './contact/services/contact.service';
 import { CreateContactSaga, DeleteContactSaga } from './contact/sagas';
 import { ContactAggregateService } from './contact/services/contact.aggregate.service';
 import { CreateContactTransaction, DeleteContactTransaction } from './contact/transactions';
@@ -49,7 +49,7 @@ import { ContactQueryService } from './contact/dbqueries/services/contact.query.
       DomainChangeEventFactory,
       DomainChangeEventPublisher,
       DomainChangeEventManager,
-      ContactServiceLatest,
+      ContactService,
       CreateContactSaga,
       ContactAggregateService,
       CreateContactTransaction,
