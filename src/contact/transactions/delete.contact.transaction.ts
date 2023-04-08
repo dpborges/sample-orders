@@ -1,7 +1,7 @@
 import { ContactAggregate } from '../types';
 // import { CreateDomainTransaction } from './create.domain.transaction';
 import { createConnection } from 'typeorm';
-import { CreateContactDto } from '../dtos/create.contact.dto';
+// import { CreateContactDto } from '../dtos/create.contact.dto';
 import { Repository, DataSource } from 'typeorm';
 import { Injectable, Inject } from '@nestjs/common';
 import { Contact } from '../entities/contact.entity';

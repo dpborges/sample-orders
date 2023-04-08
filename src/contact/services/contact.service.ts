@@ -98,7 +98,6 @@ export class ContactService {
 
     /* If contact does not exists, return 404 error */
     const contactExists = await this.contactQueryService.checkContactExistsById(accountId, id);
-    console.log("contactExists var ", contactExists)
     if (!contactExists) {
       return this.notFoundContactError(id)
     }
@@ -124,7 +123,6 @@ export class ContactService {
 
     /* If contact does not exists, return 404 error */
     const contactExists = await this.contactQueryService.checkContactExistsById(accountId, id);
-    console.log("contactExists var ", contactExists)
     if (!contactExists) {
       return this.notFoundContactError(id)
     }

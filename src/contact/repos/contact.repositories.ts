@@ -19,13 +19,13 @@ export const contactRepositories = [
     inject: ['DATA_SOURCE'],
   },
   {
-    provide: RepoToken.CONTACT_OUTBOX_REPOSITORY,
-    useFactory: (dataSource: DataSource) => dataSource.getRepository(ContactOutbox),
-    inject: ['DATA_SOURCE'],
-  },
-  {
     provide: RepoToken.CONTACT_ACCT_REL_REPOSITORY,
     useFactory: (dataSource: DataSource) => dataSource.getRepository(ContactAcctRel),
     inject: ['DATA_SOURCE'],
-  }
+  },
+  // {
+  //   provide: RepoToken.CONTACT_OUTBOX_REPOSITORY,
+  //   useFactory: (dataSource: DataSource) => dataSource.getRepository(ContactOutbox),
+  //   inject: ['DATA_SOURCE'],
+  // }
 ];

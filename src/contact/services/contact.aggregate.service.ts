@@ -8,7 +8,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import { Repository, DataSource } from 'typeorm';
 import { Contact } from '../entities/contact.entity';
 // import { AggregateRoot } from 'src/aggregrate/aggregateRoot';
-import { CreateContactDto } from '../dtos/create.contact.dto';
+// import { CreateContactDto } from '../dtos/create.contact.dto';
 import { RepoToken } from '../../db-providers/repo.token.enum';
 // import { ContactAggregateEntities } from '../aggregate-types/contact.aggregate.type';
 import { ContactAggregate } from '../types/contact.aggregate'
@@ -24,7 +24,9 @@ import { genBeforeAndAfterImage } from '../../utils/gen.beforeAfter.image';
 import { DeleteTransactionResult } from '../transactions/types/delete.transaction.result';
 import { DeleteContactTransaction } from '../transactions';
 import { logStart, logStop } from '../../utils/trace.log';
+
 const logTrace = true;
+const logTraceOff = false;
 
 // Class used to construct aggregate object and related entities from event payload.
 // This class centralizes aggregate business rules in this one class. The aggregate 
@@ -59,7 +61,7 @@ export class ContactAggregateService  {
   /* Constructs aggregate from parts from the create <domain> event object. If properties for
      optional relations are not provided, do not add to aggregateEntities object.  */
   async createAggregate(createContactEvent: CreateContactEvent): Promise<ContactAggregate> {
-    /* destructure Dto to extract aggregate entities */
+    /* destructure event to extract aggregate entities */
     const { accountId, email, firstName, lastName, mobilePhone } = createContactEvent.message;
     const { sourceType, sourceName } = createContactEvent.message;
     
@@ -329,6 +331,9 @@ export class ContactAggregateService  {
    * @returns aggregateEntities - after updates applied
    */
   applyUpdatesToAggregateEntities(updateObject: any, aggregateEntities): ContactAggregate {
+    const methodName = 'applyUpdatesToAggregateEntities';
+    logTrace && logStart([methodName, 'updateObject', 'aggregateEntities'], arguments);
+
     let entityKeys = Object.keys(aggregateEntities);
     console.log("Entity keys ", entityKeys);
 
@@ -338,8 +343,6 @@ export class ContactAggregateService  {
     })
 
     // Handle Optional Entities Here
-    console.log("Aggregate BEFORE OPTIONAL " )
-    console.log(aggregateEntities )
     // Define list of optional entities
     const optionalEntityNames  = ['contactSource'];   /* list of optional entity names */
     // Define list of default objects for each of the entities
@@ -348,10 +351,8 @@ export class ContactAggregateService  {
     aggregateEntities = this.applyUpdatesToOptionalEntities(
       optionalEntityNames, defaultEntityObjects, updateObject, aggregateEntities
     )
-
-    console.log("Aggregate AFTER OPTIONAL " )
-    console.log(aggregateEntities )
-
+    
+   logTrace && logStop(methodName, 'aggregateEntities', aggregateEntities)
    return aggregateEntities;
   };
 
@@ -460,8 +461,8 @@ export class ContactAggregateService  {
    * @returns updateObject
    */
   applyUpdatesToObject(updatesObject, targetObject) {
-    const methodName = 'applyUpdatesToObject'
-    logTrace && logStart([methodName,'updatesObject', 'targetObject'], arguments);
+    const methodName = 'applyUpdatesToObject';
+    logTraceOff && logStart([methodName,'updatesObject', 'targetObject'], arguments);
 
     /* Define function that returns array of common properties between the 2 objects */
     function getCommonPropertiesBetween(object1, object2) {

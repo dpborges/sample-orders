@@ -1,6 +1,6 @@
 import { logStart, logStop } from "../../../utils/trace.log";
 
-const logTrace = true;
+const logTrace = false;
 
 /**
    * Update current step status

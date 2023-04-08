@@ -30,8 +30,8 @@ export class DomainChangeEventPublisher {
   
   /**
    * Publishes array of event instances { subject, payload } to messaging platform.
-   * This method is Event Type agnostic. It simply loads the subject and payload from 
-   * the outbox table, and publishes those events.
+   * This method is Event Type agnostic. It simply takes the array of subject and payload 
+   * from the outbox table, and publishes those events.
    * @param eventInstances 
    * @returns 
    */
@@ -47,7 +47,7 @@ export class DomainChangeEventPublisher {
       /* publish event */
       let natsResult = await this.customNatsClient.publishEvent(subject, payload);
 
-      console.log(`MS -publishing orderCreatedEvent: ${natsResult}`);
+      console.log(`MS -publishing Event: ${natsResult}`);
       
       /* update event status to published */
       if (this.isAcknowledged(natsResult)) {

@@ -34,15 +34,15 @@ export class OutboxService {
   async publishUnpublishedEvents(payload: PublishUnpublishedEventsCmdPayload): Promise<any[]> {
     console.log(">>>> Inside publishUnpublishedEvents method");
 
-    /* find unpublished events in outbox for a  given accountId */
+    /* find unpublished events in outbox for a given accountId */
     const outboxInstances: Array<ContactOutbox> = 
       await this.contactOutboxRepository.find({
-        where: { accountId: payload.accountId }
+        where: { accountId: payload.accountId, status: OutboxStatus.unpublished}
       });
     console.log(" =============================")
     console.log(" instances stored in outbox ", outboxInstances)
     console.log(" =============================")
-    /* init unpublished events array */
+    /* initialize unpublished events array */
     let unpublishedEvents: Array<SubjectAndPayload> = [];
 
     /* construct subject and payload object and save in array of unpublished events */
@@ -63,6 +63,7 @@ export class OutboxService {
     })
 
     console.log("    Unpublished events array ", unpublishedEvents)
+    /* send off array of unpublished events to domainChangeEventPublisher */
     await this.domainChangeEventPublisher.publishEvents(unpublishedEvents)
 
     return unpublishedEvents;
@@ -114,7 +115,7 @@ export class OutboxService {
 
   /* generates the contactDeletedEvent and return an outbox entity instance
      to the contact service to ultimately save it with the aggregate save transaction   */
-    generateContactDeletedInstance(
+  generateContactDeletedInstance(
       deleteContactEvent: DeleteContactEvent,
       serializedEventPayload:  string
     ): ContactOutbox {
